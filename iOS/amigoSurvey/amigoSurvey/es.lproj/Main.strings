@@ -1,0 +1,15 @@
+
+/* Class = "UILabel"; text = "Loaded by SettingsViewController"; ObjectID = "NDk-cv-Gan"; */
+"NDk-cv-Gan.text" = "Loaded by SettingsViewController";
+
+/* Class = "UITabBarItem"; title = "First"; ObjectID = "acW-dT-cKf"; */
+"acW-dT-cKf.title" = "First";
+
+/* Class = "UITabBarItem"; title = "Second"; ObjectID = "cPa-gy-q4n"; */
+"cPa-gy-q4n.title" = "Second";
+
+/* Class = "UIButton"; normalTitle = "Send"; ObjectID = "v6f-bg-x7c"; */
+"v6f-bg-x7c.normalTitle" = "Send";
+
+/* Class = "UILabel"; text = "Settings View"; ObjectID = "zEq-FU-wV5"; */
+"zEq-FU-wV5.text" = "Settings View";
