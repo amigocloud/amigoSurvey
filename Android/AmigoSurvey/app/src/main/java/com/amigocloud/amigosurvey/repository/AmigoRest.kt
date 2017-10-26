@@ -1,18 +1,15 @@
 package com.amigocloud.amigosurvey.repository
 
 import android.content.Context
+import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.KotlinJsonAdapterFactory
 import com.squareup.moshi.Moshi
 import io.reactivex.Single
-import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.Retrofit
-import io.reactivex.Observable
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.Disposable
-import io.reactivex.schedulers.Schedulers
-import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.http.*
+import javax.inject.Inject
+import javax.inject.Singleton
 
 
 /**
@@ -26,37 +23,37 @@ object AmigoClient {
      const val oauth = "oauth2/access_token"
 }
 
-interface AmigoApiInterface {
+interface AmigoApi {
 
     @GET("me")
-    fun getUser(@Header("Authorization") auth: String) : Observable<UserModel>
+    fun getUser(@Header("Authorization") auth: String) : Single<UserModel>
 
     @GET("me/projects")
-    fun getProjects(@Header("Authorization") auth: String) : Observable<Projects>
+    fun getProjects(@Header("Authorization") auth: String) : Single<Projects>
 
     @GET("users/{user_id}/projects/{project_id}")
     fun getProject(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
-            @Header("Authorization") auth: String) : Observable<ProjectModel>
+            @Header("Authorization") auth: String) : Single<ProjectModel>
 
     @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}")
     fun getDataset(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long,
-            @Header("Authorization") auth: String) : Observable<DatasetModel>
+            @Header("Authorization") auth: String) : Single<DatasetModel>
 
     @GET("users/{user_id}/projects/{project_id}/datasets")
     fun getDatasets(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
-            @Header("Authorization") auth: String) : Observable<Datasets>
+            @Header("Authorization") auth: String) : Single<Datasets>
 
     @GET("related_tables/{related_table_id}")
     fun getRelatedTable(
             @Path("related_table_id") user_id: Long,
-            @Header("Authorization") auth: String) : Observable<RelatedTableModel>
+            @Header("Authorization") auth: String) : Single<RelatedTableModel>
 
 
     @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}/related_tables")
@@ -64,20 +61,20 @@ interface AmigoApiInterface {
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long,
-            @Header("Authorization") auth: String) : Observable<RelatedTables>
+            @Header("Authorization") auth: String) : Single<RelatedTables>
 
     @GET("users/{user_id}/projects/{project_id}/support_files")
     fun getSupportFiles(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
-            @Header("Authorization") auth: String) : Observable<SupportFilesModel>
+            @Header("Authorization") auth: String) : Single<SupportFilesModel>
 
     @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}/forms_summary")
     fun getForms(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long,
-            @Header("Authorization") auth: String) : Observable<FormModel>
+            @Header("Authorization") auth: String) : Single<FormModel>
 
     @POST(AmigoClient.oauth)
     @FormUrlEncoded
@@ -85,49 +82,32 @@ interface AmigoApiInterface {
               @Field("client_secret") client_secret: String,
               @Field("grant_type") grant_type: String,
               @Field("username") username: String,
-              @Field("password") password: String): Observable<AmigoToken>
+              @Field("password") password: String): Single<AmigoToken>
 
     @POST(AmigoClient.oauth)
     @FormUrlEncoded
     fun refreshToken(@Field("client_id") client_id: String,
               @Field("client_secret") client_secret: String,
               @Field("grant_type") grant_type: String,
-              @Field("refresh_token") refresh_token: String): Observable<AmigoToken>
-
-    companion object {
-        fun create(): AmigoApiInterface {
-
-            val retrofit = Retrofit.Builder()
-                    .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .baseUrl(AmigoClient.base_url)
-                    .build()
-
-            return retrofit.create(AmigoApiInterface::class.java)
-        }
-    }
+              @Field("refresh_token") refresh_token: String): Single<AmigoToken>
 }
 
-val amigoApiInterface by lazy {
-    AmigoApiInterface.create()
-}
+@Singleton
+class AmigoRest @Inject constructor(
+        private val config: SurveyConfig,
+        private val moshi: Moshi,
+        private val amigoApi: AmigoApi) {
 
-class AmigoRest {
-
-    fun getAuthToken(context: Context) : String {
-        val sc =  SurveyConfig(context)
-        val json = sc.getAmigoTokenJSON()
-        val moshi = Moshi.Builder()
-                .add(KotlinJsonAdapterFactory())
-                .build()
+    private val token get() : String {
+        val json = config.getAmigoTokenJSON()
         val adapter = moshi.adapter(AmigoToken::class.java)
         val amigoToken = adapter.fromJson(json) as AmigoToken
         val token = "Bearer " + amigoToken.access_token
         return token
     }
 
-    fun login(email: String, password: String): Observable<AmigoToken> {
-        return amigoApiInterface.login(
+    fun login(email: String, password: String): Single<AmigoToken> {
+        return amigoApi.login(
                 client_id = AmigoClient.client_id,
                 client_secret = AmigoClient.client_secret,
                 grant_type = "password",
@@ -136,25 +116,32 @@ class AmigoRest {
 
     }
 
-    fun refreshToken(context: Context): Observable<AmigoToken> {
+    fun refreshToken(): Single<AmigoToken> {
         val token = ""
-        return amigoApiInterface.refreshToken(
+        return amigoApi.refreshToken(
                 client_id = AmigoClient.client_id,
                 client_secret = AmigoClient.client_secret,
                 grant_type = "refresh_token",
                 refresh_token = token)
     }
 
-    fun fetchUser(context: Context) : Observable<UserModel> {
-        return amigoApiInterface.getUser(getAuthToken(context))
+    fun AmigoToken.save() {
+        val adapter = moshi.adapter(AmigoToken::class.java)
+        val json = adapter.toJson(this)
+        print(json)
+        config.setAmigoTokenJSON(json)
     }
 
-    fun fetchProjects(context: Context) : Observable<Projects> {
-        return amigoApiInterface.getProjects(auth = getAuthToken(context))
+    fun fetchUser() : Single<UserModel> {
+        return amigoApi.getUser(token)
     }
 
-    fun fetchProject(user_id: Long, project_id: Long, context: Context) : Observable<ProjectModel> {
-        return amigoApiInterface.getProject(user_id = user_id, project_id = project_id, auth = getAuthToken(context))
+    fun fetchProjects() : Single<Projects> {
+        return amigoApi.getProjects(auth = token)
+    }
+
+    fun fetchProject(user_id: Long, project_id: Long) : Single<ProjectModel> {
+        return amigoApi.getProject(user_id = user_id, project_id = project_id, auth = token)
     }
 }
 

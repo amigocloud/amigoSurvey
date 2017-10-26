@@ -1,12 +1,15 @@
 package com.amigocloud.amigosurvey.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Environment
 import javax.inject.Inject
 import android.os.Environment.DIRECTORY_PICTURES
 import android.os.Environment.getExternalStoragePublicDirectory
 import android.util.Log
+import com.amigocloud.amigosurvey.ApplicationScope
 import java.io.File
+import javax.inject.Singleton
 
 
 /**
@@ -27,62 +30,34 @@ enum class ConfigKey {
     AMIGO_TOKEN
 }
 
-class SurveyConfig(context: Context) {
+@Singleton
+class SurveyConfig @Inject constructor(private val prefs: SharedPreferences) {
 
     val LOG_TAG = "SurveyConfig"
     val PREFS_NAME = "AmigoSurveyPrefsFile"
-    var context: Context? = null
-
-    init {
-        this.context = context
-    }
 
 //    @Inject
 //    fun SurveyConfig(context: Context) {
 //        this.context = context
 //    }
 
-    fun setString(value: String, forkey: String) {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        val editor = settings?.edit()
-        editor?.putString(forkey, value)
-        editor?.commit()
-    }
+    fun setString(value: String, forkey: String) = prefs.edit().putString(forkey, value).apply()
 
-    fun getString(forkey: String): String? {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        return settings?.getString(forkey, null)
-    }
+    fun getString(forkey: String) = prefs.getString(forkey, "")
 
-    fun setBoolean(value: Boolean, forkey: String) {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        val editor = settings?.edit()
-        editor?.putBoolean(forkey, value)
-        editor?.commit()
-    }
+    fun setBoolean(value: Boolean, forkey: String) = prefs.edit().putBoolean(forkey, value).apply()
 
-    fun getBoolean(forkey: String): Boolean? {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        return settings?.getBoolean(forkey, false)
-    }
+    fun getBoolean(forkey: String) = prefs.getBoolean(forkey, false)
 
-    fun setLong(value: Long, forkey: String) {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        val editor = settings?.edit()
-        editor?.putLong(forkey, value)
-        editor?.commit()
-    }
+    fun setLong(value: Long, forkey: String) = prefs.edit().putLong(forkey, value).apply()
 
-    fun getLong(forkey: String): Long? {
-        val settings = context?.getSharedPreferences(PREFS_NAME, 0)
-        return settings?.getLong(forkey, 0)
-    }
+    fun getLong(forkey: String) = prefs.getLong(forkey, 0)
 
     fun setEmail(email: String) {
         setString(email, forkey = ConfigKey.EMAIL.toString())
     }
 
-    fun getEmail(): String? {
+    fun getEmail(): String {
         return getString(forkey = ConfigKey.EMAIL.toString())
     }
 
@@ -90,7 +65,7 @@ class SurveyConfig(context: Context) {
         setString(password, forkey = ConfigKey.PASSWORD.toString())
     }
 
-    fun getPassword(): String? {
+    fun getPassword(): String {
         return getString(forkey = ConfigKey.PASSWORD.toString())
     }
 
@@ -98,7 +73,7 @@ class SurveyConfig(context: Context) {
         setBoolean(loggedin, forkey = ConfigKey.LOGGEDIN.toString())
     }
 
-    fun isLoggedin(): Boolean? {
+    fun isLoggedin(): Boolean {
         return getBoolean(forkey = ConfigKey.LOGGEDIN.toString())
     }
 
@@ -106,7 +81,7 @@ class SurveyConfig(context: Context) {
         setBoolean(selected, forkey = ConfigKey.DATASET_SELECTED.toString())
     }
 
-    fun isDatasetSelected(): Boolean? {
+    fun isDatasetSelected(): Boolean {
         return getBoolean(forkey = ConfigKey.DATASET_SELECTED.toString())
     }
 
@@ -118,7 +93,7 @@ class SurveyConfig(context: Context) {
         setLong(id, forkey = ConfigKey.USER_ID.toString())
     }
 
-    fun getUserId(): Long? {
+    fun getUserId(): Long {
         return getLong(forkey = ConfigKey.USER_ID.toString())
     }
 
@@ -126,7 +101,7 @@ class SurveyConfig(context: Context) {
         setLong(id, forkey = ConfigKey.PROJECT_ID.toString())
     }
 
-    fun getProjectId(): Long? {
+    fun getProjectId(): Long {
         return getLong(forkey = ConfigKey.PROJECT_ID.toString())
     }
 
@@ -135,7 +110,7 @@ class SurveyConfig(context: Context) {
         setDatasetSelected(selected = true)
     }
 
-    fun getDatasetId(): Long? {
+    fun getDatasetId(): Long {
         return getLong(forkey = ConfigKey.DATASET_ID.toString())
     }
 
@@ -175,7 +150,7 @@ class SurveyConfig(context: Context) {
         setString(url, forkey = ConfigKey.BASE_URL.toString())
     }
 
-     fun getBaseURL() : String? {
+     fun getBaseURL() : String {
         return getString(forkey = ConfigKey.BASE_URL.toString())
     }
 
@@ -183,7 +158,7 @@ class SurveyConfig(context: Context) {
         setString(json, forkey = ConfigKey.USER_MODEL.toString())
     }
 
-     fun getUserJSON() : String? {
+     fun getUserJSON() : String {
         return getString(forkey = ConfigKey.USER_MODEL.toString())
     }
 
@@ -191,7 +166,7 @@ class SurveyConfig(context: Context) {
         setString(json, forkey = ConfigKey.AMIGO_TOKEN.toString())
      }
 
-     fun getAmigoTokenJSON() : String? {
+     fun getAmigoTokenJSON() : String {
         return getString(forkey = ConfigKey.AMIGO_TOKEN.toString())
     }
 

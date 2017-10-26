@@ -1,31 +1,52 @@
 package com.amigocloud.amigosurvey
 
 import android.app.Application
-import com.amigocloud.amigosurvey.repository.SurveyConfig
+import com.amigocloud.amigosurvey.repository.*
+import com.squareup.moshi.KotlinJsonAdapterFactory
+import com.squareup.moshi.Moshi
+import io.reactivex.schedulers.Schedulers
+import retrofit2.Retrofit
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
+import retrofit2.converter.moshi.MoshiConverterFactory
 import toothpick.Toothpick
 import toothpick.config.Module
-import javax.inject.Inject
+import toothpick.configuration.Configuration
+import toothpick.registries.FactoryRegistryLocator
+import toothpick.registries.MemberInjectorRegistryLocator
+import toothpick.smoothie.module.SmoothieApplicationModule
+import javax.inject.Scope
 
-
-
-/**
- * Created by victor on 10/20/17.
- */
+@Scope
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ApplicationScope
 
 class MyApplication : Application() {
-
-    @Inject internal var config: SurveyConfig? = null
 
     override fun onCreate() {
         super.onCreate()
 
-        val appScope = Toothpick.openScope(this)
-        appScope.installModules(object : Module() {
-            init {
-//                bind(Machine::class.java).to(SurveyConfig::class.java)
-            }
-        })
-        Toothpick.inject(this, appScope)
+        Toothpick.setConfiguration(Configuration.forProduction().disableReflection())
+        FactoryRegistryLocator.setRootRegistry(FactoryRegistry())
+        MemberInjectorRegistryLocator.setRootRegistry(MemberInjectorRegistry())
+
+        Toothpick.openScope(ApplicationScope::class.java).apply {
+            installModules(ApplicationModule(this@MyApplication))
+        }
+    }
+}
+
+class ApplicationModule(app: Application) : SmoothieApplicationModule(app) {
+    init {
+        val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+
+        val retrofit = Retrofit.Builder()
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.createWithScheduler(Schedulers.io()))
+                .addConverterFactory(MoshiConverterFactory.create(moshi))
+                .baseUrl(AmigoClient.base_url)
+                .build()
+
+        bind(Moshi::class.java).toInstance(moshi)
+        bind(AmigoApi::class.java).toInstance(retrofit.create(AmigoApi::class.java))
     }
 }
 

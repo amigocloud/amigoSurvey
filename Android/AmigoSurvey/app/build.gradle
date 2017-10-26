@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
+apply plugin: 'kotlin-kapt'
 apply plugin: 'kotlin-android'
-
 apply plugin: 'kotlin-android-extensions'
 
 android {
@@ -21,6 +21,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    dataBinding {
+        enabled = true
+    }
 }
 
 dependencies {
@@ -29,6 +32,8 @@ dependencies {
     implementation 'com.android.support:appcompat-v7:26.1.0'
     implementation 'com.android.support:design:26.1.0'
     testImplementation 'junit:junit:4.12'
+    testImplementation 'org.mockito:mockito-core:1.10.19'
+    testImplementation 'com.github.stephanenicolas.toothpick:toothpick-testing:1.1.1'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
 
@@ -39,14 +44,14 @@ dependencies {
 
     // Toothpick
     compile 'com.github.stephanenicolas.toothpick:toothpick-runtime:1.1.1'
-    // and for android -> compile 'com.github.stephanenicolas.toothpick:smoothie:1.1.1'
-    annotationProcessor 'com.github.stephanenicolas.toothpick:toothpick-compiler:1.1.1'
+    compile 'com.github.stephanenicolas.toothpick:smoothie:1.1.1'
+    kapt 'com.github.stephanenicolas.toothpick:toothpick-compiler:1.1.1'
+    kaptTest 'com.github.stephanenicolas.toothpick:toothpick-compiler:1.1.1'
 
     // Retrofit 2
     compile 'com.squareup.retrofit2:retrofit:2.3.0'
     compile "com.squareup.retrofit2:adapter-rxjava2:2.3.0"
-    compile 'com.google.code.gson:gson:2.8.0'
-    compile 'com.squareup.retrofit2:converter-gson:2.1.0'
+    compile 'com.squareup.retrofit2:converter-moshi:2.1.0'
     compile "io.reactivex.rxjava2:rxandroid:2.0.1"
 
     // Rx 2
@@ -57,4 +62,11 @@ dependencies {
 
     // Moshi
     compile 'com.squareup.moshi:moshi-kotlin:1.5.0'
+    compile 'com.squareup.moshi:moshi:1.5.0'
+}
+
+kapt {
+    arguments {
+        arg('toothpick_registry_package_name', "com.amigocloud.amigosurvey")
+    }
 }
