@@ -6,5 +6,7 @@ data class AmigoToken(
         var expires_in: Long = 0,
         var refresh_token: String = "",
         var scope: String = ""
-)
+) {
+    val header = "Bearer " + access_token
+}
 

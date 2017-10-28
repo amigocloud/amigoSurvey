@@ -1,5 +1,7 @@
 package com.amigocloud.amigosurvey.models
 
+import com.squareup.moshi.Json
+
 /**
  * Created by victor on 10/20/17.
  */
@@ -13,5 +15,6 @@ data class UserModel(
         var organization: String = "",
         var visible_projects: String = "",
 //    var visible_projects: [ProjectModel] = []
-        var projects: Projects? = null
+
+        @Json(name = "projects") var projectsUrl: String = ""
 )

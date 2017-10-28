@@ -1,26 +1,29 @@
 package com.amigocloud.amigosurvey.viewmodel
 
+import android.arch.lifecycle.ViewModel
 import android.databinding.ObservableField
-import android.os.Bundle
-import com.amigocloud.amigosurvey.repository.Repository
+import com.amigocloud.amigosurvey.repository.AmigoRest
 import javax.inject.Inject
 
-class LoginViewModel @Inject constructor(private val repo: Repository) {
+class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
 
     val email = ObservableField<String>()
     val password = ObservableField<String>()
 
-    fun login() =
-            repo.login(email.get(), password.get())
-                    .flatMap { repo.fetchUser() }
-//
-//    fun save(bundle: Bundle) {
-//        bundle.putString("email", email.get())
-//        bundle.putString("password", password.get())
-//    }
-//
-//    fun load(bundle: Bundle) {
-//        email.set(bundle.getString("email"))
-//        password.set(bundle.getString("password"))
-//    }
+    fun login() = rest.login(email.get(), password.get())
+
+    fun fetchUser() = rest.fetchUser()
+
+    @Suppress("UNCHECKED_CAST")
+    class Factory @Inject constructor(private val rest: AmigoRest) : ViewModelFactory<LoginViewModel>() {
+
+        override val modelClass = LoginViewModel::class.java
+
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if(modelClass.isAssignableFrom(this.modelClass)) {
+                return LoginViewModel(rest) as T
+            }
+            throw IllegalArgumentException(inflationException)
+        }
+    }
 }
