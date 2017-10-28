@@ -6,6 +6,7 @@ import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.KotlinJsonAdapterFactory
 import com.squareup.moshi.Moshi
 import io.reactivex.Single
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.http.*
 import javax.inject.Inject
@@ -92,18 +93,23 @@ interface AmigoApi {
               @Field("refresh_token") refresh_token: String): Single<AmigoToken>
 }
 
+class TokenRefreshedException : Exception("Token Refreshed")
+
 @Singleton
 class AmigoRest @Inject constructor(
         private val config: SurveyConfig,
         private val moshi: Moshi,
         private val amigoApi: AmigoApi) {
 
-    private val token get() : String {
-        val json = config.getAmigoTokenJSON()
-        val adapter = moshi.adapter(AmigoToken::class.java)
-        val amigoToken = adapter.fromJson(json) as AmigoToken
-        val token = "Bearer " + amigoToken.access_token
-        return token
+    private var currentToken: AmigoToken? = null
+
+    private val token
+        get() : String {
+            currentToken?.let { return it.access_token }
+            val json = config.getAmigoTokenJSON()
+            val token = moshi.adapter(AmigoToken::class.java).fromJson(json)
+                    ?: throw Exception("Failed to parse token")
+            return "Bearer " + token.access_token
     }
 
     fun login(email: String, password: String): Single<AmigoToken> {
@@ -113,16 +119,19 @@ class AmigoRest @Inject constructor(
                 grant_type = "password",
                 username = email,
                 password = password)
+                .map { it.apply { save() } }
 
     }
 
     fun refreshToken(): Single<AmigoToken> {
-        val token = ""
-        return amigoApi.refreshToken(
-                client_id = AmigoClient.client_id,
-                client_secret = AmigoClient.client_secret,
-                grant_type = "refresh_token",
-                refresh_token = token)
+        return currentToken?.let {
+            amigoApi.refreshToken(
+                    client_id = AmigoClient.client_id,
+                    client_secret = AmigoClient.client_secret,
+                    grant_type = "refresh_token",
+                    refresh_token = it.refresh_token)
+                    .map { it.apply { save() } }
+        } ?: Single.error(Exception("No token found"))
     }
 
     fun AmigoToken.save() {
@@ -130,19 +139,29 @@ class AmigoRest @Inject constructor(
         val json = adapter.toJson(this)
         print(json)
         config.setAmigoTokenJSON(json)
+        currentToken = this
     }
 
     fun fetchUser() : Single<UserModel> {
-        return amigoApi.getUser(token)
+        return amigoApi.getUser(token).checkToken()
     }
 
     fun fetchProjects() : Single<Projects> {
-        return amigoApi.getProjects(auth = token)
+        return amigoApi.getProjects(token).checkToken()
     }
 
     fun fetchProject(user_id: Long, project_id: Long) : Single<ProjectModel> {
-        return amigoApi.getProject(user_id = user_id, project_id = project_id, auth = token)
+        return amigoApi.getProject(user_id, project_id, token).checkToken()
+    }
+
+    private fun <T> Single<T>.checkToken(): Single<T> {
+        return this.onErrorResumeNext{ error ->
+            if(error is HttpException && error.code() == 403) {
+                refreshToken().flatMap { Single.error<T>(TokenRefreshedException()) }
+            } else Single.error(error)
+        }.retry { error -> error is TokenRefreshedException }
     }
 }
+
 
 

@@ -11,7 +11,6 @@ class Repository @Inject constructor(private val amigoRest: AmigoRest) {
     var user: UserModel? = null
 
     fun login(email: String, password: String) = amigoRest.login(email, password)
-            .doOnSuccess { token -> amigoRest.apply { token.save() } }
 
 
     fun fetchUser() : Single<UserModel> {
