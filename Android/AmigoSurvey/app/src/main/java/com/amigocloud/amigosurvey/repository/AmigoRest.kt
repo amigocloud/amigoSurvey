@@ -85,6 +85,8 @@ class AmigoRest @Inject constructor(
         private val moshi: Moshi,
         retrofit: Retrofit) {
 
+    val apiToken: String? = null
+
     private val amigoApi = retrofit.create(AmigoApi::class.java)
 
     private var token: AmigoToken? = null

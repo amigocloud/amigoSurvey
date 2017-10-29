@@ -11,11 +11,19 @@ private const val AUTH = "Authorization"
 class AmigoAuthenticator @Inject constructor(private val lazyAmigoRest: Lazy<AmigoRest>) : Authenticator, Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        val request = lazyAmigoRest.get().authHeader?.let {
-            chain.request().newBuilder()
+        var request = chain.request()
+        val url = request.url()
+        val rest = lazyAmigoRest.get()
+
+        rest.apiToken?.let {
+            val newUrl = url.newBuilder().addQueryParameter("token", it).build()
+            request = request.newBuilder().url(newUrl).build()
+        } ?: rest.authHeader?.let {
+            request = request.newBuilder()
                     .addHeader(AUTH, it)
                     .build()
-        } ?: chain.request()
+        }
+
         return chain.proceed(request)
     }
 
