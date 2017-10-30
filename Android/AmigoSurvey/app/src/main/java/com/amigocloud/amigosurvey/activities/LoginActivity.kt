@@ -34,7 +34,6 @@ class LoginActivity : AppCompatActivity() {
         binding.viewModel = viewModel
         binding.emailSignInButton.setOnClickListener {
             viewModel.login()
-                    .andThen(viewModel.fetchUser())
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe({ user ->
                         Log.d("UserModel", user.toString())

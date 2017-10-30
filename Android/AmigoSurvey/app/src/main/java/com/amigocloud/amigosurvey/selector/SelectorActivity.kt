@@ -29,7 +29,6 @@ class SelectorActivity : AppCompatActivity() {
                 viewModel.getDatasets()
             }
             SelectorItem.Type.DATASET -> viewModel.getProjects()
-            SelectorItem.Type.PLACEHOLDER -> dataSource
         }
 
         dataSource.observe(this@SelectorActivity, dataObserver)

@@ -12,8 +12,6 @@ class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
 
     fun login() = rest.login(email.get(), password.get())
 
-    fun fetchUser() = rest.fetchUser()
-
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest) : ViewModelFactory<LoginViewModel>() {
 

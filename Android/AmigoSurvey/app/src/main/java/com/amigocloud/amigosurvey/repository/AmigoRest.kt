@@ -4,6 +4,7 @@ import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
 import io.reactivex.Single
+import io.reactivex.rxkotlin.toMaybe
 import retrofit2.Retrofit
 import retrofit2.http.*
 import javax.inject.Inject
@@ -94,6 +95,7 @@ class AmigoRest @Inject constructor(
 
     private val amigoApi = retrofit.create(AmigoApi::class.java)
 
+    private var user: UserModel? = null
     private var token: AmigoToken? = null
     internal val authHeader get() = token?.header
 
@@ -105,18 +107,30 @@ class AmigoRest @Inject constructor(
         }
     }
 
-    fun login(email: String, password: String): Completable = amigoApi.login(
+    fun login(email: String, password: String): Single<UserModel> = amigoApi.login(
             AmigoClient.client_id,
             AmigoClient.client_secret,
             "password",
             email,
             password
     ).flatMapCompletable { Completable.fromAction { it.save() } }
+            .andThen(amigoApi.getUser())
+            .doOnSuccess { user = it }
 
     fun logout(): Completable = Completable.fromAction {
         token = null
+        user = null
         config.amigoTokenJson.value = ""
     }
+
+    fun fetchUser(): Single<UserModel> = user.toMaybe().switchIfEmpty(amigoApi.getUser())
+
+    fun fetchProjects(limit: Int = 20, offset: Int = 0) = amigoApi.getProjects(limit, offset)
+
+    fun fetchDatasets(projectId: Long, limit: Int = 20, offset: Int = 0): Single<Datasets> =
+            fetchUser().flatMap { amigoApi.getDatasets(it.id, projectId, limit, offset) }
+
+    fun fetchProject(user_id: Long, project_id: Long) = amigoApi.getProject(user_id, project_id)
 
     internal fun refreshToken(): Single<AmigoToken> = token?.let {
         amigoApi.refreshToken(
@@ -124,7 +138,7 @@ class AmigoRest @Inject constructor(
                 AmigoClient.client_secret,
                 "refresh_token",
                 it.refresh_token
-        ).map { it.apply{ save() } }
+        ).map { it.apply { save() } }
     } ?: Single.error(Exception("No token found"))
 
     private fun AmigoToken.save() {
@@ -134,15 +148,6 @@ class AmigoRest @Inject constructor(
         config.amigoTokenJson.value = json
         token = this
     }
-
-    fun fetchUser() = amigoApi.getUser()
-
-    fun fetchProjects(limit: Int = 20, offset: Int = 0) = amigoApi.getProjects(limit, offset)
-
-    fun fetchDatasets(projectId: Long, limit: Int = 20, offset: Int = 0): Single<Datasets> =
-            fetchUser().flatMap { amigoApi.getDatasets(it.id, projectId, limit, offset) }
-
-    fun fetchProject(user_id: Long, project_id: Long) = amigoApi.getProject(user_id, project_id)
 }
 
 

@@ -1,5 +1,6 @@
 package com.amigocloud.amigosurvey.selector
 
+import android.arch.paging.DataSource
 import android.arch.paging.LivePagedListProvider
 import android.arch.paging.TiledDataSource
 import android.util.Log
@@ -10,12 +11,7 @@ class DatasetsListProvider(private val projectId: Long, private val rest: AmigoR
     : LivePagedListProvider<Int, SelectorItem>() {
 
     private val dataSource = object : TiledDataSource<SelectorItem>() {
-        override fun countItems() =
-                try {
-                    rest.fetchDatasets(projectId, 1, 0).blockingGet().count
-                } catch (e: Exception) {
-                    0 /* return 0 items on error */
-                }
+        override fun countItems() = DataSource.COUNT_UNDEFINED
 
         override fun loadRange(startPosition: Int, count: Int): MutableList<SelectorItem> =
                 try {
@@ -26,6 +22,7 @@ class DatasetsListProvider(private val projectId: Long, private val rest: AmigoR
                             .blockingGet()
                 } catch (e: Exception) {
                     Log.d("DatasetsListProvider", "Error loading datasets", e)
+                    invalidate()
                     mutableListOf()
                 }
     }
