@@ -6,7 +6,7 @@ import android.arch.lifecycle.ViewModelProviders
 import android.support.v4.app.Fragment
 import android.support.v7.app.AppCompatActivity
 
-const val inflationException = "ViewModel could not be inflated"
+const val INFLATION_EXCEPTION = "ViewModel could not be inflated"
 
 abstract class ViewModelFactory<VM : ViewModel> : ViewModelProvider.Factory {
 

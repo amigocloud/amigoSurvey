@@ -10,7 +10,6 @@ import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
 import com.amigocloud.amigosurvey.databinding.ActivityLoginBinding
 import com.amigocloud.amigosurvey.selector.SelectorActivity
-import com.amigocloud.amigosurvey.viewmodel.LoginViewModel
 import io.reactivex.android.schedulers.AndroidSchedulers
 import toothpick.Toothpick
 import javax.inject.Inject

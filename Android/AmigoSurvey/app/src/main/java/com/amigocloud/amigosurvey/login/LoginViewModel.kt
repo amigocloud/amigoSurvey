@@ -1,8 +1,10 @@
-package com.amigocloud.amigosurvey.viewmodel
+package com.amigocloud.amigosurvey.login
 
 import android.arch.lifecycle.ViewModel
 import android.databinding.ObservableField
 import com.amigocloud.amigosurvey.repository.AmigoRest
+import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
+import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
 import javax.inject.Inject
 
 class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
@@ -21,7 +23,7 @@ class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
             if(modelClass.isAssignableFrom(this.modelClass)) {
                 return LoginViewModel(rest) as T
             }
-            throw IllegalArgumentException(inflationException)
+            throw IllegalArgumentException(INFLATION_EXCEPTION)
         }
     }
 }

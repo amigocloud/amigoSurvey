@@ -4,8 +4,8 @@ import android.arch.lifecycle.ViewModel
 import android.arch.paging.PagedList
 import android.databinding.ObservableField
 import com.amigocloud.amigosurvey.repository.AmigoRest
+import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
-import com.amigocloud.amigosurvey.viewmodel.inflationException
 import javax.inject.Inject
 
 class SelectorViewModel(private val rest: AmigoRest) : ViewModel() {
@@ -33,7 +33,7 @@ class SelectorViewModel(private val rest: AmigoRest) : ViewModel() {
             if (modelClass.isAssignableFrom(this.modelClass)) {
                 return SelectorViewModel(rest) as T
             }
-            throw IllegalArgumentException(inflationException)
+            throw IllegalArgumentException(INFLATION_EXCEPTION)
         }
     }
 }

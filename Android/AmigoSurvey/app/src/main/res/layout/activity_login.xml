@@ -4,7 +4,7 @@
     <data>
         <variable
             name="viewModel"
-            type="com.amigocloud.amigosurvey.viewmodel.LoginViewModel"/>
+            type="com.amigocloud.amigosurvey.login.LoginViewModel"/>
     </data>
 
     <LinearLayout
