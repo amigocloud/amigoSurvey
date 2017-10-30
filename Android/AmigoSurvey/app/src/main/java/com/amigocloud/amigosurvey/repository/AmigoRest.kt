@@ -92,6 +92,7 @@ class AmigoRest @Inject constructor(
         retrofit: Retrofit) {
 
     val apiToken: String? = null
+    var user: UserModel? = null
 
     private val amigoApi = retrofit.create(AmigoApi::class.java)
 
