@@ -1,21 +1,27 @@
 package com.amigocloud.amigosurvey.selector
 
-import android.support.v7.util.DiffUtil
+import android.arch.paging.PagedListAdapter
+import android.support.v7.recyclerview.extensions.DiffCallback
 import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import com.amigocloud.amigosurvey.databinding.ItemSelectorBinding
 
+data class SelectorItem(val type: Type, val id: Long, val name: String, val imageUrl: String?) {
+    enum class Type { PROJECT, DATASET, PLACEHOLDER }
+}
 
-data class SelectorItem(val id: Long, val name: String, val imageUrl: String)
+class SelectorAdapter(private val onClick: (SelectorItem) -> Unit)
+    : PagedListAdapter<SelectorItem, SelectorAdapter.ViewHolder>(DIFF_CALLBACK) {
 
-class SelectorAdapter : RecyclerView.Adapter<SelectorAdapter.ViewHolder>() {
+    companion object {
+        val DIFF_CALLBACK = object : DiffCallback<SelectorItem>() {
+            override fun areItemsTheSame(oldItem: SelectorItem, newItem: SelectorItem) = oldItem.id == newItem.id
+            override fun areContentsTheSame(oldItem: SelectorItem, newItem: SelectorItem) = oldItem == newItem
+        }
 
-    init {
-        setHasStableIds(true)
+        val PLACEHOLDER_ITEM = SelectorItem(SelectorItem.Type.PLACEHOLDER, 0, "Loading...", null)
     }
-
-    private var data = mutableListOf<SelectorItem>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         return LayoutInflater.from(parent.context).let {
@@ -24,37 +30,12 @@ class SelectorAdapter : RecyclerView.Adapter<SelectorAdapter.ViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: SelectorAdapter.ViewHolder, position: Int) {
-        holder.bind(data[position])
-    }
-
-    override fun getItemCount() = data.size
-
-    override fun getItemId(position: Int) = data[position].id
-
-    fun setData(data: List<SelectorItem>) {
-        DiffUtil.calculateDiff(DiffCallback(this.data, data)).let {
-            this.data.clear()
-            this.data.addAll(data)
-            it.dispatchUpdatesTo(this)
-        }
-    }
-
-    class DiffCallback(private val oldItems: List<SelectorItem>,
-                       private val newItems: List<SelectorItem>) : DiffUtil.Callback() {
-        override fun getOldListSize() = oldItems.size
-
-        override fun getNewListSize() = newItems.size
-
-        override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
-                oldItems[oldItemPosition].id == newItems[newItemPosition].id
-
-        override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int) =
-                oldItems[oldItemPosition] == newItems[newItemPosition]
-
+        holder.bind(getItem(position) ?: PLACEHOLDER_ITEM, onClick)
     }
 
     class ViewHolder(private val binding: ItemSelectorBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(item: SelectorItem) {
+        fun bind(item: SelectorItem, onClick: (SelectorItem) -> Unit) {
+            itemView.setOnClickListener { if (item.id > 0) onClick(item) }
             binding.item = item
             binding.executePendingBindings()
         }

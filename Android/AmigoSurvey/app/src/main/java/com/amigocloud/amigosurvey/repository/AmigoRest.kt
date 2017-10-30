@@ -23,7 +23,10 @@ interface AmigoApi {
     fun getUser() : Single<UserModel>
 
     @GET("me/projects")
-    fun getProjects() : Single<Projects>
+    fun getProjects(
+            @Query("limit") limit: Int,
+            @Query("offset") offset: Int
+    ): Single<Projects>
 
     @GET("users/{user_id}/projects/{project_id}")
     fun getProject(
@@ -39,7 +42,9 @@ interface AmigoApi {
     @GET("users/{user_id}/projects/{project_id}/datasets")
     fun getDatasets(
             @Path("user_id") user_id: Long,
-            @Path("project_id") project_id: Long) : Single<Datasets>
+            @Path("project_id") project_id: Long,
+            @Query("limit") limit: Int,
+            @Query("offset") offset: Int): Single<Datasets>
 
     @GET("related_tables/{related_table_id}")
     fun getRelatedTable(
@@ -132,7 +137,10 @@ class AmigoRest @Inject constructor(
 
     fun fetchUser() = amigoApi.getUser()
 
-    fun fetchProjects() = amigoApi.getProjects()
+    fun fetchProjects(limit: Int = 20, offset: Int = 0) = amigoApi.getProjects(limit, offset)
+
+    fun fetchDatasets(projectId: Long, limit: Int = 20, offset: Int = 0): Single<Datasets> =
+            fetchUser().flatMap { amigoApi.getDatasets(it.id, projectId, limit, offset) }
 
     fun fetchProject(user_id: Long, project_id: Long) = amigoApi.getProject(user_id, project_id)
 }

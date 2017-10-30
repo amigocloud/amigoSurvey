@@ -8,8 +8,9 @@ object DataBindingAdapters {
 
     @JvmStatic
     @BindingAdapter("srcCompat")
-    fun setImageSrc(view: ImageView, url: String) {
-        Glide.with(view).load(url).into(view)
+    fun setImageSrc(view: ImageView, url: String?) {
+        if (url != null) Glide.with(view).load(url).into(view)
+        else view.setImageBitmap(null)
     }
 
 }

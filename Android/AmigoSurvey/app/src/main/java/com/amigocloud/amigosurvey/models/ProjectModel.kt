@@ -22,8 +22,8 @@ data class ProjectModel(
 )
 
 data class Projects(
-        var count: Int? = null,
+        var count: Int = 0,
         var next: String? = null,
         var previous: String? = null,
-        var results: List<ProjectModel>? = null
+        var results: List<ProjectModel> = listOf()
 )
