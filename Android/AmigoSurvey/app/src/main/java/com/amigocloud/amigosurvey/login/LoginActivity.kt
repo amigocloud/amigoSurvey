@@ -1,4 +1,4 @@
-package com.amigocloud.amigosurvey.activities
+package com.amigocloud.amigosurvey.login
 
 import android.content.Intent
 import android.databinding.DataBindingUtil
