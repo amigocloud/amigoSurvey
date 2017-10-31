@@ -31,11 +31,11 @@ class LoginActivity : AppCompatActivity() {
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_login)
         binding.viewModel = viewModel
+
         binding.emailSignInButton.setOnClickListener {
             viewModel.login()
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe({ user ->
-                        Log.d("UserModel", user.toString())
                         startActivity(Intent(this, SelectorActivity::class.java))
                     }, {
                         Toast.makeText(this, "Login Failed", Toast.LENGTH_LONG).show()

@@ -35,7 +35,7 @@ class SelectorActivity : AppCompatActivity() {
 
         if (it.type == SelectorItem.Type.DATASET) {
             val intent = Intent(this, FormActivity::class.java)
-            intent.putExtra(FormActivity.INTENT_USER_ID, 0)
+            intent.putExtra(FormActivity.INTENT_USER_ID, 2L)
             viewModel.selectedProject.get()?.let { project_id ->
                 intent.putExtra(FormActivity.INTENT_PROJECT_ID, project_id.id)
             }

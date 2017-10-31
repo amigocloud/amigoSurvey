@@ -1,14 +1,23 @@
 package com.amigocloud.amigosurvey.repository
 
+import android.util.Log
 import com.amigocloud.amigosurvey.models.*
+import com.amigocloud.amigosurvey.util.unzipFile
+import com.amigocloud.amigosurvey.util.writeResponseBodyToDisk
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
 import io.reactivex.Single
 import io.reactivex.rxkotlin.toMaybe
+import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.http.*
 import javax.inject.Inject
 import javax.inject.Singleton
+import retrofit2.http.Url
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import retrofit2.http.GET
 
 
 object AmigoClient {
@@ -23,7 +32,7 @@ interface AmigoApi {
     @GET("me")
     fun getUser() : Single<UserModel>
 
-    @GET("me/projects")
+    @GET("me/projects?summary")
     fun getProjects(
             @Query("limit") limit: Int,
             @Query("offset") offset: Int
@@ -40,7 +49,7 @@ interface AmigoApi {
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long) : Single<DatasetModel>
 
-    @GET("users/{user_id}/projects/{project_id}/datasets")
+    @GET("users/{user_id}/projects/{project_id}/datasets?summary")
     fun getDatasets(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
@@ -62,6 +71,9 @@ interface AmigoApi {
     fun getSupportFiles(
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long) : Single<SupportFilesModel>
+
+    @GET
+    fun downloadFileWithUrlSync(@Url fileUrl: String): Call<ResponseBody>
 
     @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}/forms_summary")
     fun getForms(
@@ -91,6 +103,8 @@ class AmigoRest @Inject constructor(
         private val moshi: Moshi,
         retrofit: Retrofit) {
 
+    val TAG = "AmigoRest"
+
     val apiToken: String? = null
 
     private val amigoApi = retrofit.create(AmigoApi::class.java)
@@ -98,6 +112,9 @@ class AmigoRest @Inject constructor(
     private var user: UserModel? = null
     private var token: AmigoToken? = null
     internal val authHeader get() = token?.header
+
+    private var project: ProjectModel? = null
+    private var dataset: DatasetModel? = null
 
     init {
         val json = config.amigoTokenJson.value
@@ -131,6 +148,16 @@ class AmigoRest @Inject constructor(
             fetchUser().flatMap { amigoApi.getDatasets(it.id, projectId, limit, offset) }
 
     fun fetchProject(user_id: Long, project_id: Long) = amigoApi.getProject(user_id, project_id)
+
+    fun fetchDataset(user_id: Long, project_id: Long, dataset_id: Long) = amigoApi.getDataset(user_id, project_id, dataset_id)
+
+    fun fetchForms(user_id: Long, project_id: Long, dataset_id: Long) = amigoApi.getForms(user_id, project_id, dataset_id)
+
+    fun fetchRelatedTables(user_id: Long, project_id: Long, dataset_id: Long) = amigoApi.getRelatedTables(user_id, project_id, dataset_id)
+
+    fun downloadFileWithUrlSync(url: String) = amigoApi.downloadFileWithUrlSync(url)
+
+    fun fetchSupportFiles(user_id: Long, project_id: Long) = amigoApi.getSupportFiles(user_id, project_id)
 
     internal fun refreshToken(): Single<AmigoToken> = token?.let {
         amigoApi.refreshToken(

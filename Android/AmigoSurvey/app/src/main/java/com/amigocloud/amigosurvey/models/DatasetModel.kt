@@ -1,9 +1,5 @@
 package com.amigocloud.amigosurvey.models
 
-/**
- * Created by victor on 10/21/17.
- */
-
 data class DatasetModel(
         var id: Long = 0,
         var name: String = "",

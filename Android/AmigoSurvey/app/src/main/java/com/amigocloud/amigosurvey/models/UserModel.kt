@@ -2,10 +2,6 @@ package com.amigocloud.amigosurvey.models
 
 import com.squareup.moshi.Json
 
-/**
- * Created by victor on 10/20/17.
- */
-
 data class UserModel(
         var email: String = "",
         var id: Long = 0,
