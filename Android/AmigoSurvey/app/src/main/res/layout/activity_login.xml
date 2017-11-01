@@ -25,7 +25,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:visibility="gone" />
+            android:visibility="@{viewModel.isLoading}"/>
 
         <ScrollView
             android:id="@+id/login_form"
@@ -42,7 +42,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <AutoCompleteTextView
+                    <android.support.v7.widget.AppCompatAutoCompleteTextView
                         android:id="@+id/email"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -58,7 +58,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content">
 
-                    <EditText
+                    <android.support.v7.widget.AppCompatEditText
                         android:id="@+id/password"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -80,7 +80,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:text="@string/action_sign_in"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:onClick="@{() -> viewModel.onLogin()}"/>
 
             </LinearLayout>
         </ScrollView>

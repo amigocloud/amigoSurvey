@@ -1,16 +1,15 @@
 package com.amigocloud.amigosurvey.login
 
+import android.arch.lifecycle.Observer
 import android.content.Intent
 import android.databinding.DataBindingUtil
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
-import android.util.Log
 import android.widget.Toast
 import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
 import com.amigocloud.amigosurvey.databinding.ActivityLoginBinding
 import com.amigocloud.amigosurvey.selector.SelectorActivity
-import io.reactivex.android.schedulers.AndroidSchedulers
 import toothpick.Toothpick
 import javax.inject.Inject
 
@@ -32,15 +31,13 @@ class LoginActivity : AppCompatActivity() {
         binding = DataBindingUtil.setContentView(this, R.layout.activity_login)
         binding.viewModel = viewModel
 
-        binding.emailSignInButton.setOnClickListener {
-            viewModel.login()
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe({ user ->
-                        startActivity(Intent(this, SelectorActivity::class.java))
-                    }, {
-                        Toast.makeText(this, "Login Failed", Toast.LENGTH_LONG).show()
-                    })
-        }
+        viewModel.events.observe(this, Observer {
+            it?.let { event ->
+                event.error?.let {
+                    Toast.makeText(this, "Login Failed", Toast.LENGTH_LONG).show()
+                } ?: startActivity(Intent(this, SelectorActivity::class.java))
+            }
+        })
     }
 
     override fun onDestroy() {

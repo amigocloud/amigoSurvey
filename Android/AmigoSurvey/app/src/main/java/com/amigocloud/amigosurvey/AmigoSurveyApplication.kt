@@ -1,6 +1,6 @@
 package com.amigocloud.amigosurvey
 
-import android.app.Application
+import android.support.multidex.MultiDexApplication
 import com.amigocloud.amigosurvey.toothpick.ApplicationModule
 import com.bumptech.glide.Glide
 import com.bumptech.glide.integration.okhttp3.OkHttpUrlLoader
@@ -18,7 +18,7 @@ import javax.inject.Scope
 @Retention(AnnotationRetention.RUNTIME)
 annotation class ApplicationScope
 
-class MyApplication : Application() {
+class MyApplication : MultiDexApplication() {
 
     override fun onCreate() {
         super.onCreate()

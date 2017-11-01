@@ -1,8 +1,6 @@
 package com.amigocloud.amigosurvey.selector
 
-import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.Observer
-import android.arch.paging.PagedList
 import android.content.Intent
 import android.databinding.DataBindingUtil
 import android.os.Bundle
@@ -18,22 +16,14 @@ import javax.inject.Inject
 class SelectorActivity : AppCompatActivity() {
 
     @Inject lateinit var viewModelFactory: SelectorViewModel.Factory
-
-    private lateinit var binding: ActivitySelectorBinding
     private lateinit var viewModel: SelectorViewModel
-    private lateinit var dataSource: LiveData<PagedList<SelectorItem>>
+    private lateinit var binding: ActivitySelectorBinding
 
     private val adapter: SelectorAdapter = SelectorAdapter({
-        dataSource.removeObserver(dataObserver)
-        dataSource = when (it.type) {
-            SelectorItem.Type.PROJECT -> {
-                viewModel.selectedProject.set(it)
-                viewModel.getDatasets()
-            }
-            SelectorItem.Type.DATASET -> viewModel.getProjects()
-        }
-
-        if (it.type == SelectorItem.Type.DATASET) {
+        if (it.type == SelectorItem.Type.PROJECT) {
+            viewModel.selectedProject.set(it)
+            viewModel.showDatasets()
+        } else {
             val intent = Intent(this, FormActivity::class.java)
             intent.putExtra(FormActivity.INTENT_USER_ID, 2L)
             viewModel.selectedProject.get()?.let { project_id ->
@@ -42,11 +32,7 @@ class SelectorActivity : AppCompatActivity() {
             intent.putExtra(FormActivity.INTENT_DATASET_ID, it.id)
             startActivity(intent)
         }
-
-        dataSource.observe(this@SelectorActivity, dataObserver)
     })
-
-    private val dataObserver = Observer<PagedList<SelectorItem>> { list -> adapter.setList(list) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,14 +46,21 @@ class SelectorActivity : AppCompatActivity() {
         binding.list.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
         binding.list.adapter = adapter
 
-        dataSource = viewModel.getProjects().apply {
-            observe(this@SelectorActivity, dataObserver)
-        }
+        viewModel.dataSource.observe(this@SelectorActivity, Observer { list -> adapter.setList(list) })
     }
 
     override fun onDestroy() {
         super.onDestroy()
 
         Toothpick.closeScope(this)
+    }
+
+    override fun onBackPressed() {
+        if (viewModel.selectedProject.get() != null) {
+            viewModel.selectedProject.set(null)
+            viewModel.showProjects()
+            return
+        }
+        super.onBackPressed()
     }
 }

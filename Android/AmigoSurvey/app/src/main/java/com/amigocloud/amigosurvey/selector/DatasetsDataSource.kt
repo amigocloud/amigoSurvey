@@ -17,6 +17,7 @@ class DatasetsListProvider(private val projectId: Long, private val rest: AmigoR
                 try {
                     rest.fetchDatasets(projectId, count, startPosition)
                             .flatMapObservable { Observable.fromIterable(it.results) }
+                            .filter { it.visible }
                             .map { SelectorItem(SelectorItem.Type.DATASET, it.id, it.name, it.preview_image) }
                             .toList()
                             .blockingGet()
