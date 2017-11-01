@@ -1,5 +1,6 @@
 package com.amigocloud.amigosurvey.toothpick.provider
 
+import com.amigocloud.amigosurvey.BuildConfig
 import com.amigocloud.amigosurvey.repository.AmigoAuthenticator
 import com.facebook.stetho.okhttp3.StethoInterceptor
 import okhttp3.OkHttpClient
@@ -15,6 +16,6 @@ class HttpClientProvider @Inject constructor(private val authenticator: AmigoAut
     override fun get(): OkHttpClient = OkHttpClient.Builder()
             .authenticator(authenticator)
             .addInterceptor(authenticator)
-            .addInterceptor(StethoInterceptor())
+            .apply { if (BuildConfig.DEBUG) addNetworkInterceptor(StethoInterceptor()) }
             .build()
 }
