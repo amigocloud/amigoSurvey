@@ -1,9 +1,6 @@
 package com.amigocloud.amigosurvey.repository
 
-import android.util.Log
 import com.amigocloud.amigosurvey.models.*
-import com.amigocloud.amigosurvey.util.unzipFile
-import com.amigocloud.amigosurvey.util.writeResponseBodyToDisk
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
 import io.reactivex.Single
@@ -13,11 +10,6 @@ import retrofit2.Retrofit
 import retrofit2.http.*
 import javax.inject.Inject
 import javax.inject.Singleton
-import retrofit2.http.Url
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
-import retrofit2.http.GET
 
 
 object AmigoClient {
@@ -73,7 +65,7 @@ interface AmigoApi {
             @Path("project_id") project_id: Long) : Single<SupportFilesModel>
 
     @GET
-    fun downloadFileWithUrlSync(@Url fileUrl: String): Call<ResponseBody>
+    fun downloadFile(@Url fileUrl: String): Single<ResponseBody>
 
     @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}/forms_summary")
     fun getForms(
@@ -103,7 +95,7 @@ class AmigoRest @Inject constructor(
         private val moshi: Moshi,
         retrofit: Retrofit) {
 
-    val TAG = "AmigoRest"
+    private val TAG = "AmigoRest"
 
     val apiToken: String? = null
 
@@ -112,9 +104,6 @@ class AmigoRest @Inject constructor(
     private var user: UserModel? = null
     private var token: AmigoToken? = null
     internal val authHeader get() = token?.header
-
-    private var project: ProjectModel? = null
-    private var dataset: DatasetModel? = null
 
     init {
         val json = config.amigoTokenJson.value
@@ -130,9 +119,8 @@ class AmigoRest @Inject constructor(
             "password",
             email,
             password
-    ).flatMapCompletable { Completable.fromAction { it.save() } }
-            .andThen(amigoApi.getUser())
-            .doOnSuccess { user = it }
+    ).flatMapCompletable { Completable.fromAction { it.save() } }.andThen(fetchUser())
+
 
     fun logout(): Completable = Completable.fromAction {
         token = null
@@ -140,7 +128,8 @@ class AmigoRest @Inject constructor(
         config.amigoTokenJson.value = ""
     }
 
-    fun fetchUser(): Single<UserModel> = user.toMaybe().switchIfEmpty(amigoApi.getUser())
+    fun fetchUser(): Single<UserModel> = user.toMaybe()
+            .switchIfEmpty(amigoApi.getUser().doOnSuccess { user = it })
 
     fun fetchProjects(limit: Int = 20, offset: Int = 0) = amigoApi.getProjects(limit, offset)
 
@@ -155,7 +144,7 @@ class AmigoRest @Inject constructor(
 
     fun fetchRelatedTables(user_id: Long, project_id: Long, dataset_id: Long) = amigoApi.getRelatedTables(user_id, project_id, dataset_id)
 
-    fun downloadFileWithUrlSync(url: String) = amigoApi.downloadFileWithUrlSync(url)
+    fun downloadFile(url: String) = amigoApi.downloadFile(url)
 
     fun fetchSupportFiles(user_id: Long, project_id: Long) = amigoApi.getSupportFiles(user_id, project_id)
 

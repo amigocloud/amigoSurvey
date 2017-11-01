@@ -9,12 +9,17 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import toothpick.smoothie.module.SmoothieApplicationModule
 import java.io.File
+import javax.inject.Qualifier
+
+@Qualifier annotation class FileDir
+@Qualifier annotation class CacheDir
 
 class ApplicationModule(app: Application) : SmoothieApplicationModule(app) {
     init {
         bind(Moshi::class.java).toInstance(Moshi.Builder().add(KotlinJsonAdapterFactory()).build())
         bind(OkHttpClient::class.java).toProvider(HttpClientProvider::class.java)
         bind(Retrofit::class.java).toProvider(RetrofitProvider::class.java)
-        bind(Application::class.java).withName("application").toInstance(app)
+        bind(File::class.java).withName(FileDir::class.java).toInstance(app.filesDir)
+        bind(File::class.java).withName(CacheDir::class.java).toInstance(app.cacheDir)
     }
 }

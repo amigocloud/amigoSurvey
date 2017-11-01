@@ -22,15 +22,17 @@
 package com.amigocloud.amigosurvey.form
 
 import android.arch.lifecycle.ViewModel
-import com.amigocloud.amigosurvey.models.*
+import com.amigocloud.amigosurvey.models.FormModel
+import com.amigocloud.amigosurvey.models.RelatedTableModel
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.SurveyConfig
 import com.amigocloud.amigosurvey.util.unzipFile
-import com.amigocloud.amigosurvey.util.writeResponseBodyToDisk
+import com.amigocloud.amigosurvey.util.writeToDisk
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
+import io.reactivex.Observable
 import io.reactivex.Single
-import java.io.IOException
+import java.io.File
 import javax.inject.Inject
 
 
@@ -38,46 +40,30 @@ class FormViewModel(private val rest: AmigoRest, private val config: SurveyConfi
     private val TAG = "FormViewModel"
     private val supportFname = "support_files.zip"
 
-    fun fetchForm(user_id: Long, project_id: Long, dataset_id: Long): Single<FormModel> {
-        return rest.fetchForms(user_id, project_id, dataset_id)
-    }
+    fun fetchForm(user_id: Long, project_id: Long, dataset_id: Long): Single<FormModel> =
+            rest.fetchForms(user_id, project_id, dataset_id)
 
-    fun fetchSupportFiles(user_id: Long, project_id: Long): Single<Boolean> {
-        return rest.fetchSupportFiles(user_id, project_id )
-                .flatMap { supportFiles ->
-                    downloadSupportFiles(supportFiles.zip)
-                }
-                .flatMap { flag ->
-                    val path = config.webFormDir + supportFname
-                    val ok = unzipFile(path, config.webFormDir)
-                    Single.just(ok)
-                }
-    }
+    fun fetchSupportFiles(user_id: Long, project_id: Long): Single<File> =
+            rest.fetchSupportFiles(user_id, project_id)
+                    .flatMap { downloadSupportFiles(it.zip) }
+                    .flatMap { unzipSupportFiles() }
 
-    fun fetchRelatedTables(user_id: Long, project_id: Long, dataset_id: Long): Single<RelatedTables> {
-        return rest.fetchRelatedTables(user_id, project_id, dataset_id)
-    }
+    fun fetchRelatedTables(user_id: Long, project_id: Long, dataset_id: Long): Single<List<RelatedTableModel>> =
+            rest.fetchRelatedTables(user_id, project_id, dataset_id)
+                    .flatMapObservable { Observable.fromIterable(it.results) }
+                    .toList()
 
-    fun downloadSupportFiles(url: String): Single<Boolean> {
-        val call = rest.downloadFileWithUrlSync(url)
+    private fun unzipSupportFiles() =
+            unzipFile(config.webFormDir + supportFname, config.webFormDir)
 
-        val response = call.execute()
-        if(response.isSuccessful) {
-            val fullPath = config.webFormDir + supportFname
-            try {
-                if (writeResponseBodyToDisk(response.body(), fullPath)) {
-                    unzipFile(fullPath, config.webFormDir)
-                    return Single.just(true)
-                }
-            } catch(e: IOException) {
-                return Single.just(false)
-            }
-        }
-        return Single.just(false)
-    }
+    private fun downloadSupportFiles(url: String) = rest.downloadFile(url)
+            .flatMap { it.writeToDisk(config.webFormDir + supportFname) }
+            .flatMap { unzipFile(config.webFormDir + supportFname, config.webFormDir) }
+
 
     @Suppress("UNCHECKED_CAST")
-    class Factory @Inject constructor(private val rest: AmigoRest, private val config: SurveyConfig) : ViewModelFactory<FormViewModel>() {
+    class Factory @Inject constructor(private val rest: AmigoRest,
+                                      private val config: SurveyConfig) : ViewModelFactory<FormViewModel>() {
 
         override val modelClass = FormViewModel::class.java
 

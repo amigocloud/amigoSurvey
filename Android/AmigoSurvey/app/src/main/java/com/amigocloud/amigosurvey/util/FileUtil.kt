@@ -1,9 +1,10 @@
 package com.amigocloud.amigosurvey.util
 import android.util.Log
-import com.amigocloud.amigosurvey.repository.SurveyConfig
+import io.reactivex.Single
 import okhttp3.ResponseBody
-import java.io.*
-import java.util.zip.ZipEntry
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
 
@@ -19,95 +20,58 @@ fun mkdir(path: String, dirname: String): Boolean {
     return true
 }
 
-fun writeResponseBodyToDisk(body: ResponseBody?, fullPath: String): Boolean {
-    try {
-        // todo change the file location/name according to your needs
-        val futureFile = File(fullPath)
+fun ResponseBody.writeToDisk(fullPath: String): Single<File> = Single.fromCallable<File> {
+    val futureFile = File(fullPath)
+    val fileReader = ByteArray(4096 * 10)
+    var fileSizeDownloaded: Long = 0
 
-        var inputStream: InputStream? = null
-        var outputStream: OutputStream? = null
-
-        try {
-            val fileReader = ByteArray(4096*10)
-
-            val fileSize = body?.contentLength()
-            var fileSizeDownloaded: Long = 0
-
-            inputStream = body?.byteStream()
-            futureFile.createNewFile()
-            outputStream = FileOutputStream(futureFile)
-
+    byteStream().use { inputStream ->
+        futureFile.createNewFile()
+        FileOutputStream(futureFile).use { outputStream ->
             while (true) {
-                val read = inputStream!!.read(fileReader)
+                val read = inputStream.read(fileReader)
 
-                if (read == -1) {
-                    break
-                }
+                if (read == -1) break
 
                 outputStream.write(fileReader, 0, read)
 
                 fileSizeDownloaded += read.toLong()
-
-//                Log.d(TAG, "file download: $fileSizeDownloaded of $fileSize")
             }
-
             outputStream.flush()
-
-            return true
-        } catch (e: IOException) {
-            print(e)
-            return false
-        } finally {
-                inputStream?.close()
-                outputStream?.close()
         }
-    } catch (e: IOException) {
-        print(e)
-        return false
     }
+
+    futureFile
 }
 
-@Throws(IOException::class)
-fun unzipFile(zipFile: String, location: String): Boolean  {
-    try {
-        val f = File(location)
-        if (!f.isDirectory) {
-            f.mkdirs()
-        }
-        val zin = ZipInputStream(FileInputStream(zipFile))
-        try {
-            var ze: ZipEntry? = zin.getNextEntry()
-            while (ze != null) {
-                ze = zin.getNextEntry()
-                ze?.let { ze ->
-                    val path = location + ze.getName()
+fun unzipFile(zipFile: String, location: String): Single<File> = Single.fromCallable<File> {
+    val fileInLocation = File(location)
+    if (!fileInLocation.isDirectory) {
+        fileInLocation.mkdirs()
+    }
+    ZipInputStream(FileInputStream(zipFile)).use { zin ->
+        while (zin.nextEntry != null) {
+            zin.nextEntry?.let { entry ->
+                val path = location + entry.name
 
-                    if (ze.isDirectory()) {
-                        val unzipFile = File(path)
-                        if (!unzipFile.isDirectory) {
-                            unzipFile.mkdirs()
+                if (entry.isDirectory) {
+                    val unzipFile = File(path)
+                    if (!unzipFile.isDirectory) {
+                        unzipFile.mkdirs()
+                    }
+                } else {
+                    FileOutputStream(path, false).use { fout ->
+                        var c = zin.read()
+                        while (c != -1) {
+                            fout.write(c)
+                            c = zin.read()
                         }
-                    } else {
-                        val fout = FileOutputStream(path, false)
-                        try {
-                            var c = zin.read()
-                            while (c != -1) {
-                                fout.write(c)
-                                c = zin.read()
-                            }
-                            zin.closeEntry()
-                        } finally {
-                            fout.close()
-                        }
+                        zin.closeEntry()
                     }
                 }
             }
-        } finally {
-            zin.close()
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Unzip exception", e)
-        return false
     }
-    return true
+
+    fileInLocation
 }

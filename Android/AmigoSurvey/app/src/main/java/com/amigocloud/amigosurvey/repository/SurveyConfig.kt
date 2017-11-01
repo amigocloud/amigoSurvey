@@ -1,12 +1,10 @@
 package com.amigocloud.amigosurvey.repository
 
-import android.app.Application
-import android.content.Context
 import android.content.SharedPreferences
-import android.os.Environment
-import com.amigocloud.amigosurvey.util.save
+import com.amigocloud.amigosurvey.toothpick.FileDir
 import com.amigocloud.amigosurvey.util.get
 import com.amigocloud.amigosurvey.util.mkdir
+import com.amigocloud.amigosurvey.util.save
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,7 +15,8 @@ enum class ConfigKey {
 }
 
 @Singleton
-class SurveyConfig @Inject constructor(private val prefs: SharedPreferences, private val application: Application) {
+class SurveyConfig @Inject constructor(prefs: SharedPreferences,
+                                       @FileDir filesDir: File) {
 
     val email = ConfigPreference(prefs, ConfigKey.EMAIL, String::class.java)
     val password = ConfigPreference(prefs, ConfigKey.PASSWORD, String::class.java)
@@ -31,7 +30,7 @@ class SurveyConfig @Inject constructor(private val prefs: SharedPreferences, pri
     val userJson = ConfigPreference(prefs, ConfigKey.USER_MODEL, String::class.java)
     val amigoTokenJson = ConfigPreference(prefs, ConfigKey.AMIGO_TOKEN, String::class.java)
 
-    val storageDir = application.filesDir.path
+    val storageDir: String = filesDir.path
     val webFormDir by lazy { mkdir( storageDir, "webform").let { "$storageDir/webform/" } }
     val photosDir by lazy { mkdir(storageDir, "photos").let { "$storageDir/photos/" } }
 }

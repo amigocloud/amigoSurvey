@@ -6,8 +6,6 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.integration.okhttp3.OkHttpUrlLoader
 import com.bumptech.glide.load.model.GlideUrl
 import com.facebook.stetho.Stetho
-import com.facebook.stetho.okhttp.StethoInterceptor
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import toothpick.Toothpick
 import toothpick.configuration.Configuration
@@ -25,10 +23,7 @@ class MyApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        Stetho.initializeWithDefaults(this);
-//        OkHttpClient.Builder()
-//                .addNetworkInterceptor(StethoInterceptor())
-//                .build()
+        Stetho.initializeWithDefaults(this)
 
         Toothpick.setConfiguration(Configuration.forProduction().disableReflection())
         FactoryRegistryLocator.setRootRegistry(FactoryRegistry())

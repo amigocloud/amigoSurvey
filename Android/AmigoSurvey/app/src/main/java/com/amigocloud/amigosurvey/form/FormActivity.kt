@@ -21,14 +21,14 @@
 package com.amigocloud.amigosurvey.form
 
 import android.annotation.SuppressLint
-import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
+import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import android.webkit.WebView
 import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
 import com.amigocloud.amigosurvey.models.FormModel
 import com.amigocloud.amigosurvey.models.RelatedTableModel
-import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
 import toothpick.Toothpick
@@ -47,7 +47,7 @@ class FormActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var viewModel: FormViewModel
-    private lateinit var relatedTables: MutableList<RelatedTableModel>
+    private lateinit var relatedTables: List<RelatedTableModel>
     private lateinit var forms: FormModel
 
     @Inject lateinit var viewModelFactory: FormViewModel.Factory
@@ -73,24 +73,27 @@ class FormActivity : AppCompatActivity() {
         viewModel.fetchForm(user_id, project_id, dataset_id)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({ forms ->
-                    this.forms = forms
-                }, {
-                })
+                .subscribe(
+                        { forms ->
+                            this.forms = forms
+                            Log.d("Forms Fetched", forms.toString())
+                        }, { it.printStackTrace() })
 
-        relatedTables = viewModel.fetchRelatedTables(user_id, project_id, dataset_id)
+        viewModel.fetchRelatedTables(user_id, project_id, dataset_id)
                 .subscribeOn(Schedulers.io())
-                .flatMapObservable { Observable.fromIterable(it.results)}
-                .toList()
-                .blockingGet()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(
+                        { tables ->
+                            this.relatedTables = tables
+                            Log.d("Related Tables Fetched", tables.toString())
+                        }, { it.printStackTrace() })
 
         viewModel.fetchSupportFiles(user_id, project_id)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({ flag ->
-                    val a = flag
-                }, {
-                })
+                .subscribe(
+                        { Log.d("Support Files Fetched", it.toString()) },
+                        { it.printStackTrace() })
 
     }
 
