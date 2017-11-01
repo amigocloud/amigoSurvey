@@ -13,7 +13,7 @@ import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
 import io.reactivex.processors.PublishProcessor
 import javax.inject.Inject
 
-data class LoginEvent(val user: UserModel?, val error: Throwable?)
+data class LoginViewState(val user: UserModel? = null, val error: Throwable? = null)
 
 class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
 
@@ -23,11 +23,11 @@ class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
     val password = ObservableField<String>()
     val isLoading = ObservableBoolean(false)
 
-    val events: LiveData<LoginEvent> = LiveDataReactiveStreams.fromPublisher(loginProcessor
+    val events: LiveData<LoginViewState> = LiveDataReactiveStreams.fromPublisher(loginProcessor
             .flatMapSingle { (email, password) ->
                 rest.login(email, password)
-                        .map { LoginEvent(it, null) }
-                        .onErrorReturn { LoginEvent(null, it) }
+                        .map { LoginViewState(user = it) }
+                        .onErrorReturn { LoginViewState(error = it) }
             }
             .doAfterNext { isLoading.set(false) })
 

@@ -25,6 +25,9 @@ android {
     dataBinding {
         enabled = true
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -41,6 +44,7 @@ dependencies {
     implementation "android.arch.paging:runtime:1.0.0-alpha3"
     testImplementation 'junit:junit:4.12'
     testImplementation 'org.mockito:mockito-core:2.8.9'
+    testImplementation "android.arch.core:core-testing:1.0.0-rc1"
     testImplementation 'com.github.stephanenicolas.toothpick:toothpick-testing:1.1.1'
     androidTestImplementation 'com.android.support.test:runner:1.0.1'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
@@ -65,6 +69,7 @@ dependencies {
     // Because RxAndroid releases are few and far between, it is recommended you also
     // explicitly depend on RxJava's latest version for bug fixes and new features.
     implementation 'io.reactivex.rxjava2:rxjava:2.1.5'
+    implementation 'com.github.zellius:rxlocationmanager-rxjava2:1.0.0'
 
     // Moshi
     implementation 'com.squareup.moshi:moshi-kotlin:1.5.0'

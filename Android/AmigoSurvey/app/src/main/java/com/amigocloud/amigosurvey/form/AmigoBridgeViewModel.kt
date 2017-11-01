@@ -1,10 +1,21 @@
 package com.amigocloud.amigosurvey.form
 
 import android.arch.lifecycle.ViewModel
+import android.databinding.ObservableField
+import com.amigocloud.amigosurvey.models.DatasetModel
+import com.amigocloud.amigosurvey.models.ProjectModel
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.SurveyConfig
+import com.squareup.moshi.Json
+
+class ProjectData(val id: Long,
+                  @Json(name = "history_dataset_id") val historyId: Long,
+                  name: String?)
 
 class AmigoBridgeViewModel (private val rest: AmigoRest, private val config: SurveyConfig) : ViewModel() {
+
+    val dataset = ObservableField<DatasetModel?>()
+    val project = ObservableField<ProjectModel?>()
 
     fun getLastLocationWKT(): String {
         val lat = 37.0
@@ -12,9 +23,7 @@ class AmigoBridgeViewModel (private val rest: AmigoRest, private val config: Sur
         return "SRID=4326;POINT($lng $lat)"
     }
 
-    fun getDatasetSchema(datasetId: Long): String {
-        return ""
-    }
+    val schema = dataset.get()?.schema ?: ""
 
     fun getHTML(name: String): String {
         return "" // self.formModel?.create_block_form
