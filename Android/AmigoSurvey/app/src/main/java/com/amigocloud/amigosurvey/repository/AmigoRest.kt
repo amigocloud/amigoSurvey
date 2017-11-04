@@ -3,6 +3,7 @@ package com.amigocloud.amigosurvey.repository
 import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.rxkotlin.toMaybe
 import okhttp3.ResponseBody
@@ -57,6 +58,12 @@ interface AmigoApi {
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long) : Single<RelatedTables>
+
+    @GET("users/{user_id}/projects/{project_id}/datasets/{dataset_id}/schema")
+    fun getSchema(
+            @Path("user_id") user_id: Long,
+            @Path("project_id") project_id: Long,
+            @Path("dataset_id") dataset_id: Long) : Single<SchemaModel>
 
     @GET("users/{user_id}/projects/{project_id}/support_files")
     fun getSupportFiles(
@@ -125,6 +132,12 @@ class AmigoRest @Inject constructor(
         config.amigoTokenJson.value = ""
     }
 
+    fun getUserJSON(user: UserModel): String = moshi.adapter(UserModel::class.java).toJson(user)
+
+    fun getListJSON(list: List<Any>): String = moshi.adapter(Any::class.java).toJson(list)
+
+    fun getJSON(obj: Any): String = moshi.adapter(Any::class.java).toJson(obj)
+
     fun fetchUser(): Single<UserModel> = user.toMaybe()
             .switchIfEmpty(amigoApi.getUser().doOnSuccess { user = it })
 
@@ -144,6 +157,9 @@ class AmigoRest @Inject constructor(
 
     fun fetchRelatedTables(project_id: Long, dataset_id: Long): Single<RelatedTables> =
             fetchUser().flatMap { amigoApi.getRelatedTables(it.id, project_id, dataset_id) }
+
+    fun fetchSchema(project_id: Long, dataset_id: Long): Single<SchemaModel> =
+            fetchUser().flatMap { amigoApi.getSchema(it.id, project_id, dataset_id) }
 
     fun downloadFile(url: String) = amigoApi.downloadFile(url)
 

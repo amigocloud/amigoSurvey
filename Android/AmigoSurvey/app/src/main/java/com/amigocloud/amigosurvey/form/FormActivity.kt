@@ -25,10 +25,12 @@ import android.arch.lifecycle.Observer
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.webkit.WebView
+import android.widget.ProgressBar
 import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
 import com.amigocloud.amigosurvey.models.FormModel
 import com.amigocloud.amigosurvey.models.RelatedTableModel
+import com.amigocloud.amigosurvey.repository.SurveyConfig
 import toothpick.Toothpick
 import javax.inject.Inject
 
@@ -37,6 +39,7 @@ class FormActivity : AppCompatActivity() {
         val INTENT_USER_ID = "user_id"
         val INTENT_PROJECT_ID = "project_id"
         val INTENT_DATASET_ID = "dataset_id"
+        val BASE_URL = "https://www.amigocloud.com"
     }
 
     var user_id: Long = 0
@@ -44,9 +47,12 @@ class FormActivity : AppCompatActivity() {
     var dataset_id: Long = 0
 
     private lateinit var webView: WebView
+    private lateinit var progressBar: ProgressBar
     private lateinit var viewModel: FormViewModel
     private lateinit var relatedTables: List<RelatedTableModel>
     private lateinit var forms: FormModel
+    private lateinit var bridge: AmigoBridge
+    private var ready: Boolean = false
 
     @Inject lateinit var viewModelFactory: FormViewModel.Factory
 
@@ -64,28 +70,45 @@ class FormActivity : AppCompatActivity() {
         project_id = intent.getLongExtra(INTENT_PROJECT_ID, 0L)
         dataset_id = intent.getLongExtra(INTENT_DATASET_ID, 0L)
         webView = findViewById(R.id.webview)
+        progressBar = findViewById(R.id.load_progress)
 
         webView.settings?.javaScriptEnabled = true
         webView.settings?.allowFileAccess = true
 
+        bridge = AmigoBridge(this)
         viewModel.events.observe(this, Observer {
             it?.let { state ->
-                //                bridge.setViewState(state)
+                bridge.formViewState = state
+                ready = true
+                _loadForm(state)
+                progressBar.visibility = ProgressBar.INVISIBLE
             }
         })
 
         viewModel.location.observe(this, Observer {
-            //            bridge.setLocation(it)
+            it?.let { location -> bridge.lastLocation = location }
         })
 
         viewModel.onFetchForm(project_id, dataset_id)
+
+        WebView.setWebContentsDebuggingEnabled(true)
     }
 
     fun isReady(): Boolean {
-        return true
+        return ready
     }
 
     fun getWebView() = this.webView
 
+    fun _loadForm(state: FormViewState) {
+        bridge.formType = "create_block"
+        webView.let { webView ->
+            webView.addJavascriptInterface(bridge, "AmigoPlatform")
+//            webView.loadUrl("window.onerror = function (message, url, lineNumber) {AmigoPlatform.onException(message + ' URL: ' + url + ' Line:' + lineNumber);}")
+            val html = state.form?.base_form?.replaceFirst("<base href=\".*\".*>".toRegex(), "")
+            val url = "file://" + state.webFormDir + bridge.formType
+            webView.loadDataWithBaseURL(url, html, "text/html", "UTF-8", "")
+        }
+    }
 
 }

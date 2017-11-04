@@ -1,5 +1,25 @@
 package com.amigocloud.amigosurvey.models
 
+//data class SchemaItem (
+//        var type: String? = null,
+//        var name: String? = null,
+//        var nullable: Boolean? = null,
+//        var min_length: Int? = null,
+//        var max_length: Int? = null,
+//        var geometry_type: String? = null,
+//        var default: String? = null,
+//        var auto_populate: Boolean? = null,
+//        var visible: Boolean? = null,
+//        var editable: Boolean? = null,
+//        var alias: String? = null,
+//        var related_to: Int? = null,
+//        var is_join : Boolean? = null,
+//)
+
+data class SchemaModel(
+        var schema: List<Any>? = null
+)
+
 data class DatasetModel(
         var id: Long = 0,
         var name: String = "",
@@ -19,15 +39,9 @@ data class DatasetModel(
         var schema: String = "",
         var submit_change: String = "",
         var forms_summary: String = "",
-
         var schema_hash: String = "",
-//    var schema_fields: [String] = []
-
         var related_tables: String = "",
         var related_tables_hash: String = ""
-//    var related_tables: [RelatedTableModel] = []
-
-//    var formModel = FormModel()
 )
 
 data class Datasets(

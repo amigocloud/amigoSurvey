@@ -10,7 +10,5 @@ data class UserModel(
         var last_name: String = "",
         var organization: String = "",
         var visible_projects: String = "",
-//    var visible_projects: [ProjectModel] = []
-
         @Json(name = "projects") var projectsUrl: String = ""
 )

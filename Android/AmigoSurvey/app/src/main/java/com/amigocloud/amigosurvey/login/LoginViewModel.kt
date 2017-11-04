@@ -32,8 +32,12 @@ class LoginViewModel(private val rest: AmigoRest) : ViewModel() {
             .doAfterNext { isLoading.set(false) })
 
     fun onLogin() {
-        val email = email.get()
-        val password = password.get()
+        var email = email.get()
+        var password = password.get()
+
+        email = "victor@amigocloud.com"
+        password = "vchernet757"
+
         if (!TextUtils.isEmpty(email) && !TextUtils.isEmpty(password)) {
             isLoading.set(true)
             loginProcessor.onNext(email.to(password))

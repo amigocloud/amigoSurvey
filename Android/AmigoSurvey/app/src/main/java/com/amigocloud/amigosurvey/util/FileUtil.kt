@@ -5,6 +5,9 @@ import okhttp3.ResponseBody
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.time.Clock
+import java.util.*
+import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
 
@@ -22,7 +25,7 @@ fun mkdir(path: String, dirname: String): Boolean {
 
 fun ResponseBody.writeToDisk(fullPath: String): Single<File> = Single.fromCallable<File> {
     val futureFile = File(fullPath)
-    val fileReader = ByteArray(4096 * 10)
+    val fileReader = ByteArray(4096 )
     var fileSizeDownloaded: Long = 0
 
     byteStream().use { inputStream ->
@@ -50,10 +53,10 @@ fun unzipFile(zipFile: String, location: String): Single<File> = Single.fromCall
         fileInLocation.mkdirs()
     }
     ZipInputStream(FileInputStream(zipFile)).use { zin ->
-        while (zin.nextEntry != null) {
-            zin.nextEntry?.let { entry ->
+        do {
+            val nextEntry = zin.nextEntry
+            nextEntry?.let { entry ->
                 val path = location + entry.name
-
                 if (entry.isDirectory) {
                     val unzipFile = File(path)
                     if (!unzipFile.isDirectory) {
@@ -70,8 +73,7 @@ fun unzipFile(zipFile: String, location: String): Single<File> = Single.fromCall
                     }
                 }
             }
-        }
+        } while (nextEntry != null)
+        fileInLocation
     }
-
-    fileInLocation
 }
