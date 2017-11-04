@@ -95,6 +95,25 @@ interface AmigoApi {
               @Field("refresh_token") refresh_token: String): Single<AmigoToken>
 }
 
+data class UserJSON(
+        var email: String = "",
+        var id: String = "",
+        var custom_id: String = "",
+        var first_name: String = "",
+        var last_name: String = "",
+        var organization: String = "",
+        var visible_projects: String = "",
+        var projects: String = ""
+)
+
+data class ProjectJSON(
+        var id: String = "",
+        var name: String = "",
+        var description: String = "",
+        var organization: String = "",
+        var history_dataset_id: String = ""
+)
+
 @Singleton
 class AmigoRest @Inject constructor(
         private val config: SurveyConfig,
@@ -132,7 +151,28 @@ class AmigoRest @Inject constructor(
         config.amigoTokenJson.value = ""
     }
 
-    fun getUserJSON(user: UserModel): String = moshi.adapter(UserModel::class.java).toJson(user)
+    fun getUserJSON(user: UserModel): String {
+        val userObj = UserJSON(
+                id = user.id.toString(),
+                email = user.email,
+                custom_id = user.custom_id,
+                first_name = user.first_name,
+                last_name = user.last_name,
+                organization = user.organization,
+                visible_projects = user.visible_projects,
+                projects = user.projectsUrl)
+        return moshi.adapter(UserJSON::class.java).toJson(userObj)
+    }
+
+    fun getProjectJSON(p: ProjectModel): String {
+        val obj = ProjectJSON(
+                id = p.id.toString(),
+                name = p.name,
+                description = p.description,
+                organization = p.organization,
+                history_dataset_id = p.history_dataset_id.toString())
+        return moshi.adapter(ProjectJSON::class.java).toJson(obj)
+    }
 
     fun getListJSON(list: List<Any>): String = moshi.adapter(Any::class.java).toJson(list)
 
@@ -163,8 +203,9 @@ class AmigoRest @Inject constructor(
 
     fun downloadFile(url: String) = amigoApi.downloadFile(url)
 
-    fun fetchSupportFiles(project_id: Long): Single<SupportFilesModel> =
-            fetchUser().flatMap { amigoApi.getSupportFiles(it.id, project_id) }
+    fun fetchSupportFiles(project: ProjectModel): Single<SupportFilesModel> =
+            fetchUser()
+                    .flatMap {amigoApi.getSupportFiles(it.id, project.id)}
 
     internal fun refreshToken(): Single<AmigoToken> = token?.let {
         amigoApi.refreshToken(

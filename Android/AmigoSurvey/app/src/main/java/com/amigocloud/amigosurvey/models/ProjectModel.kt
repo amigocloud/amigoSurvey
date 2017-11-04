@@ -14,7 +14,8 @@ data class ProjectModel(
         var preview_image: String = "",
         var preview_image_hash: String = "",
         var support_files: String = "",
-        var support_files_hash: String = ""
+        var support_files_hash: String = "",
+        var history_dataset_id: String? = null
 )
 
 data class Projects(

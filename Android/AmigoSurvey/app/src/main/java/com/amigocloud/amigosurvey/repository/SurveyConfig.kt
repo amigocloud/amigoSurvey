@@ -11,7 +11,7 @@ import javax.inject.Singleton
 
 enum class ConfigKey {
     EMAIL, PASSWORD, LOGGEDIN, DATASET_SELECTED, TOKEN, USER_ID,
-    PROJECT_ID, DATASET_ID, BASE_URL, USER_MODEL, AMIGO_TOKEN
+    PROJECT_ID, DATASET_ID, BASE_URL, USER_MODEL, AMIGO_TOKEN, SUPPORT_FILES_HASH
 }
 
 @Singleton
@@ -29,6 +29,7 @@ class SurveyConfig @Inject constructor(prefs: SharedPreferences,
     val baseUrl = ConfigPreference(prefs, ConfigKey.BASE_URL, String::class.java)
     val userJson = ConfigPreference(prefs, ConfigKey.USER_MODEL, String::class.java)
     val amigoTokenJson = ConfigPreference(prefs, ConfigKey.AMIGO_TOKEN, String::class.java)
+    val supportFilesHash = ConfigPreference(prefs, ConfigKey.SUPPORT_FILES_HASH, String::class.java)
 
     val storageDir: String = filesDir.path
     val webFormDir by lazy { mkdir( storageDir, "webform").let { "$storageDir/webform/" } }

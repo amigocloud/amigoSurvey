@@ -35,7 +35,16 @@ class AmigoBridge(private val formActivity: FormActivity) {
     var formViewState: FormViewState = FormViewState()
 
     var lastLocation: Location = Location("")
+    var geometrySet = false
 
+    fun getLastLocationWKT() : String {
+        return "SRID=4326;POINT(${lastLocation.longitude} ${lastLocation.latitude})"
+    }
+
+    fun setGeometryPosition() {
+        refreshGeometry(getLastLocationWKT())
+        geometrySet = true
+    }
 
     @JavascriptInterface
     fun getClientType(): String {
@@ -44,24 +53,44 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun ready() {
-        formActivity.runOnUiThread(Runnable {
-            if (formActivity.isReady())
-                formActivity.getWebView().loadUrl("javascript:Amigo.loadBlock(" +
+        runJS("javascript:Amigo.loadBlock(" +
                         "AmigoPlatform.getBlockHTML('" + formType + "'), '" + formType + "', " +
                         "'" + formViewState.dataset?.id + "', AmigoPlatform.getData());")
+    }
+
+    fun runJS(url: String) {
+        formActivity.runOnUiThread(Runnable {
+            if (formActivity.isReady())
+                formActivity.getWebView().loadUrl(url)
         })
+    }
+
+    fun back()
+    {
+        runJS("javascript:Amigo.historyBack();")
+    }
+
+    fun refreshGeometry(wkt: String) {
+        runJS("javascript:Amigo.refreshGeometry('$wkt');")
+    }
+
+    fun submit() {
+        print("submit()")
+        if (!geometrySet) {
+            setGeometryPosition()
+        }
+        runJS("javascript:Amigo.nativeSaveButton();")
     }
 
     @JavascriptInterface
     fun getData(): String {
-        return formViewState.recordJson //formData
+        return formViewState.recordJson
     }
 
     @JavascriptInterface
     fun getPageSize(): Int {
         return 20
     }
-
 
     @JavascriptInterface
     fun onException(msg: String) {
@@ -86,50 +115,26 @@ class AmigoBridge(private val formActivity: FormActivity) {
     @JavascriptInterface
     fun setState(json: String) {
         print("setState() -----: " + json)
-//        AmigoCloudAPI.clearEditorContext()
-//        extractAmigoId(json)
-//        try {
-//            val jObject = JSONObject(json)
-//            formType = jObject.getString("formType")
-//            formData = jObject.getString("data")
-//            datasetId = java.lang.Long.parseLong(jObject.getString("currentDatasetId"))
-//            val saveButton = jObject.getBoolean("saveBtn")
-//            val deleteButton = jObject.getBoolean("deleteBtn")
-//            val checkButton = jObject.getBoolean("checkBtn")
-//            deleteRelationship = jObject.getBoolean("relationshipDeleteBtn")
-//            activity.runOnUiThread(Runnable {
-//                if (webFragment is BaseFormFragment) {
-//                    val formFragment = webFragment as BaseFormFragment
-//                    formFragment.setSaveButtonEnabled(saveButton)
-//                    formFragment.setDeleteButtonEnabled(deleteButton)
-//                    formFragment.setCheckButtonEnabled(checkButton)
-//                    formFragment.setHeaderTitle(AmigoCloudAPI.getDatasetName(datasetId))
-//                }
-//            })
-//        } catch (e: NumberFormatException) {
-//            Crashlytics.logException(e)
-//            e.printStackTrace()
-//        } catch (e: JSONException) {
-//            Crashlytics.logException(e)
-//            e.printStackTrace()
-//        }
-//
     }
 
     @JavascriptInterface
     fun getFormDescription(datasetId: String, formType: String): String {
-        val type = formType + "_description"
-        return "" //AmigoCloudAPI.getDatasetForm(java.lang.Long.valueOf(datasetId), type)
+        if (formType == "create") {
+            val json = formViewState.formDescription
+            return json
+        }
+        return "{}"
     }
 
     @JavascriptInterface
     fun getBlockHTML(formType: String): String {
+        var data = ""
         formViewState.form?.let {
             if (formType == "create_block") {
-                return it.create_block_form
+                data = it.create_block_form
             }
         }
-        return ""
+        return data
     }
 
     @JavascriptInterface
@@ -232,17 +237,13 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun getSchemaWithId(datasetId: String): String {
-        try {
-            return "" //AmigoCloudAPI.getSchemaJSONForDataset(java.lang.Long.parseLong(datasetId))
-        } catch (e: NumberFormatException) {
-            return ""
-        }
+        return formViewState.schemaJson
     }
 
     @JavascriptInterface
     fun getSchema(): String
     {
-        return ""
+        return formViewState.schemaJson
     }
 
     @JavascriptInterface
@@ -254,31 +255,31 @@ class AmigoBridge(private val formActivity: FormActivity) {
     @JavascriptInterface
     fun getProject(): String
     {
-        return ""
+        return formViewState.projectJson
     }
 
     @JavascriptInterface
     fun getRelatedTables(datasetId: String): String {
-        try {
-            return "" //AmigoCloudAPI.getRelatedTablesJSON(java.lang.Long.parseLong(datasetId))
-        } catch (e: NumberFormatException) {
-            return ""
-        }
-
+        return formViewState.relatedTablesJson
     }
 
     @JavascriptInterface
     fun getGPSinfo(): String {
-        return "" //Globe.getGPSInfoJSON()
+        return formViewState.gpsInfo
     }
 
     @JavascriptInterface
     fun getPermissionLevel(): String {
-        return "EDITOR"
+        var perm = "READER"
+        formViewState.project?.let {
+            perm = it.permission_level
+        }
+        return perm
     }
 
     @JavascriptInterface
     fun editRowGeometry(json: String) {
+        setGeometryPosition()
     }
 
     @JavascriptInterface
@@ -287,7 +288,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun saveRow(json: String) {
-//        updateRow(formData, json)
+        updateRow(formViewState.recordJson, json)
     }
 
     @JavascriptInterface
@@ -312,6 +313,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
     @JavascriptInterface
     fun takePhoto(relatedTableId: String , amigoId: String )
     {
+        print("$relatedTableId")
     }
 
     @JavascriptInterface
@@ -320,10 +322,12 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun viewPhotos(relatedTableId: String, amigoId: String) {
+        print("$relatedTableId")
     }
 
     @JavascriptInterface
     fun dataHasChanged(hasChanged: Boolean) {
+        back()
     }
 
     @JavascriptInterface
@@ -332,7 +336,9 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun getGeometryInfo(wkb: String): String {
-        return "" //AmigoCloudAPI.getGeometryInfo(wkb)
+        var centroid = "{\"centroid_latitude\":${lastLocation.latitude},"
+        centroid += "\"centroid_longitude\":${lastLocation.longitude}}"
+        return centroid
     }
 
 
