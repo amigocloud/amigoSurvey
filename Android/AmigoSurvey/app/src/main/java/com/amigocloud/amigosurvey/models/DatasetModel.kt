@@ -1,23 +1,24 @@
 package com.amigocloud.amigosurvey.models
 
-//data class SchemaItem (
-//        var type: String? = null,
-//        var name: String? = null,
-//        var nullable: Boolean? = null,
-//        var min_length: Int? = null,
-//        var max_length: Int? = null,
-//        var geometry_type: String? = null,
-//        var default: String? = null,
-//        var auto_populate: Boolean? = null,
-//        var visible: Boolean? = null,
-//        var editable: Boolean? = null,
-//        var alias: String? = null,
-//        var related_to: Int? = null,
-//        var is_join : Boolean? = null,
-//)
+data class SchemaItem (
+        var type: String? = null,
+        var name: String? = null,
+        var nullable: Boolean? = null,
+        var min_length: Int? = null,
+        var max_length: Int? = null,
+        var geometry_type: String? = null,
+        var default: String? = null,
+        var auto_populate: Boolean? = null,
+        var visible: Boolean? = null,
+        var editable: Boolean? = null,
+        var alias: String? = null,
+        var related_to: Int? = null,
+        var is_join : Boolean? = null,
+        var custom_type: String? = null
+)
 
 data class SchemaModel(
-        var schema: List<Any>? = null
+        var schema: List<SchemaItem>? = null
 )
 
 data class DatasetModel(

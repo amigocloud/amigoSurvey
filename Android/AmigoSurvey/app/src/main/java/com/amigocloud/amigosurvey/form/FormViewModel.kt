@@ -48,6 +48,8 @@ import java.io.File
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import kotlin.collections.LinkedHashMap
+import com.squareup.moshi.*
 
 data class FormViewState(val userJson: String = "{}",
                          val recordJson: String = "",
@@ -221,7 +223,7 @@ class FormViewModel(private val rest: AmigoRest,
                     .flatMapObservable { Observable.fromIterable(it.results) }
                     .toList()
 
-    private fun fetchSchema(): Single<List<Any>> =
+    private fun fetchSchema(): Single<List<SchemaItem>> =
             rest.fetchSchema(project.get().id, dataset.get().id)
                     .flatMapObservable {
                         Observable.fromIterable(it.schema)
@@ -240,6 +242,12 @@ class FormViewModel(private val rest: AmigoRest,
     private fun downloadSupportFiles(url: String) = rest.downloadFile(url)
             .flatMap { it.writeToDisk(config.webFormDir + supportFname) }
 
+    fun getCustomFieldName(custom_type:String ): Observable<String> {
+        return rest.fetchSchema(project.get().id, dataset.get().id)
+                .flatMapObservable { Observable.fromIterable(it.schema) }
+                .filter{ (it.custom_type == custom_type) }
+                .flatMap { Observable.just(it.name) }
+    }
 
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest,

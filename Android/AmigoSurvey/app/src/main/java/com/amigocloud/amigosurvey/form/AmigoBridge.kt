@@ -265,7 +265,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun getGPSinfo(): String {
-        return formViewState.gpsInfo
+        return formActivity.getViewModel().getGPSInfoJSON(lastLocation)
     }
 
     @JavascriptInterface
@@ -314,10 +314,17 @@ class AmigoBridge(private val formActivity: FormActivity) {
     fun takePhoto(relatedTableId: String , amigoId: String )
     {
         print("$relatedTableId")
+        formActivity.takePhoto(relatedTableId, amigoId)
     }
 
     @JavascriptInterface
     fun scanBarcode(amigoId: String) {
+        formActivity.scanBarcode(amigoId)
+    }
+
+    fun setCustomFieldValue(fieldName: String, fieldValue: String) {
+        runJS("javascript:Amigo.setCustomFieldValue(" +
+                formViewState.dataset?.id.toString() + ",'" + fieldName + "','" + fieldValue + "')")
     }
 
     @JavascriptInterface
@@ -341,5 +348,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
         return centroid
     }
 
-
+    fun mediaAdded() {
+        runJS("javascript:Amigo.mediaAdded()")
+    }
 }
