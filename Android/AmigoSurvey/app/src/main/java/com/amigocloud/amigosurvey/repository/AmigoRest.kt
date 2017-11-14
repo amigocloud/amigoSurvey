@@ -1,12 +1,15 @@
 package com.amigocloud.amigosurvey.repository
 
+import android.support.v4.media.VolumeProviderCompat
 import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.rxkotlin.toMaybe
+import okhttp3.RequestBody
 import okhttp3.ResponseBody
+import org.json.JSONObject
 import retrofit2.http.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -78,6 +81,10 @@ interface AmigoApi {
             @Path("user_id") user_id: Long,
             @Path("project_id") project_id: Long,
             @Path("dataset_id") dataset_id: Long) : Single<FormModel>
+
+    @Headers("Content-Type: application/json")
+    @POST
+    fun submitChangeset(@Url submit_changeset: String, @Body body: RequestBody): Single<Any>
 
     @POST(AmigoClient.oauth)
     @FormUrlEncoded
@@ -206,6 +213,9 @@ class AmigoRest @Inject constructor(
     fun fetchSupportFiles(project: ProjectModel): Single<SupportFilesModel> =
             fetchUser()
                     .flatMap {amigoApi.getSupportFiles(it.id, project.id)}
+
+    fun submitChangeset(url: String, body: RequestBody): Single<Any> =
+            amigoApi.submitChangeset(url, body)
 
     internal fun refreshToken(): Single<AmigoToken> = token?.let {
         amigoApi.refreshToken(

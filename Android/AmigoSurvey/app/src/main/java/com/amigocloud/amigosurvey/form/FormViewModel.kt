@@ -34,9 +34,7 @@ import com.amigocloud.amigosurvey.util.unzipFile
 import com.amigocloud.amigosurvey.util.writeToDisk
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
-import com.squareup.moshi.Json
 import io.reactivex.Flowable
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.functions.BiFunction
@@ -48,8 +46,6 @@ import java.io.File
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import kotlin.collections.LinkedHashMap
-import com.squareup.moshi.*
 
 data class FormViewState(val userJson: String = "{}",
                          val recordJson: String = "",
@@ -88,7 +84,6 @@ data class GPSInfoJson(
 class FormViewModel(private val rest: AmigoRest,
                     private val config: SurveyConfig,
                     private val locationManager: RxLocationManager) : ViewModel() {
-    private val TAG = "FormViewModel"
     private val supportFname = "support_files.zip"
 
     private val processor = BehaviorProcessor.create<Pair<Long, Long>>()
@@ -150,10 +145,11 @@ class FormViewModel(private val rest: AmigoRest,
             })
 
     val location: LiveData<Location> = LiveDataReactiveStreams.fromPublisher(
-            Flowable.timer(10, TimeUnit.SECONDS)
+            Flowable.timer(3, TimeUnit.SECONDS)
+                    .repeat()
                     .flatMapSingle {
-                        locationManager.requestLocation(LocationManager.GPS_PROVIDER,
-                                LocationTime(10, TimeUnit.SECONDS))
+                        locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
+                                LocationTime(3, TimeUnit.SECONDS))
                                 .onErrorReturn { Location("") }
                     })
 
@@ -242,7 +238,7 @@ class FormViewModel(private val rest: AmigoRest,
     private fun downloadSupportFiles(url: String) = rest.downloadFile(url)
             .flatMap { it.writeToDisk(config.webFormDir + supportFname) }
 
-    fun getCustomFieldName(custom_type:String ): Observable<String> {
+    fun getCustomFieldName(custom_type: String): Observable<String> {
         return rest.fetchSchema(project.get().id, dataset.get().id)
                 .flatMapObservable { Observable.fromIterable(it.schema) }
                 .filter{ (it.custom_type == custom_type) }
