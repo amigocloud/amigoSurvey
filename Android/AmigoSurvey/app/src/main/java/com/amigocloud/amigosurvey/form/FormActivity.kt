@@ -42,7 +42,6 @@ import android.provider.MediaStore
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.android.IntentIntegrator
-import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
 import java.text.SimpleDateFormat

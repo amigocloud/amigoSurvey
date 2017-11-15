@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import com.amigocloud.amigosurvey.models.RelatedRecord
 import com.amigocloud.amigosurvey.repository.SurveyConfig
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
@@ -25,11 +26,15 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.text.DateFormat
+import java.util.*
 import javax.inject.Inject
 
 class PhotoInfo(val datasetId: Long, val relatedTableId: Long, val sourceAmigoId: String, var imageFile: File?)
 
-class PhotoViewModel(private val config: SurveyConfig): ViewModel() {
+class PhotoViewModel(private val config: SurveyConfig
+//                     ,private val repository: Repository
+                                            ): ViewModel() {
 
     fun addImageToGallery(activity: Activity, filePath: String) {
         val values = ContentValues()
@@ -183,7 +188,16 @@ class PhotoViewModel(private val config: SurveyConfig): ViewModel() {
     }
 
     fun storeFile(datasetId: Long, relatedTableId: Long, sourceAmigoId: String, filename: String): Boolean {
+        val currentDateTimeString = DateFormat.getDateTimeInstance().format(Date())
 
+        val record = RelatedRecord(
+                filename = filename,
+                source_amigo_id = sourceAmigoId,
+                datetime = currentDateTimeString,
+                location = "",
+                amigo_id = UUID.randomUUID().toString().replace("-", ""),
+                relatedTableId = relatedTableId.toString())
+//        repository.db.relatedRecordDao().insert(record)
         return true
     }
 
