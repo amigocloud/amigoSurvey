@@ -37,15 +37,18 @@ import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
 import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.functions.BiFunction
 import io.reactivex.internal.operators.single.SingleFromCallable
 import io.reactivex.processors.BehaviorProcessor
+import io.reactivex.schedulers.Schedulers
 import ru.solodovnikov.rx2locationmanager.LocationTime
 import ru.solodovnikov.rx2locationmanager.RxLocationManager
 import java.io.File
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
+import javax.inject.Singleton
 
 data class FormViewState(val userJson: String = "{}",
                          val recordJson: String = "",
@@ -81,9 +84,12 @@ data class GPSInfoJson(
         val bearing: String = "0",
         val speed: String = "0")
 
-class FormViewModel(private val rest: AmigoRest,
-                    private val config: SurveyConfig,
-                    private val locationManager: RxLocationManager) : ViewModel() {
+@Singleton
+class FormViewModel @Inject constructor(private val rest: AmigoRest,
+                                        private val config: SurveyConfig,
+                                        private val locationManager: RxLocationManager,
+                                        private val fileUploader: FileUploader) : ViewModel() {
+
     private val supportFname = "support_files.zip"
 
     private val processor = BehaviorProcessor.create<Pair<Long, Long>>()
@@ -245,16 +251,20 @@ class FormViewModel(private val rest: AmigoRest,
                 .flatMap { Observable.just(it.name) }
     }
 
+    fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileUploadProgress>
+            = fileUploader.uploadAllPhotos(projectId, datasetId)
+
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest,
                                       private val config: SurveyConfig,
-                                      private val locationManager: RxLocationManager) : ViewModelFactory<FormViewModel>() {
+                                      private val locationManager: RxLocationManager,
+                                      private val fileUploader: FileUploader) : ViewModelFactory<FormViewModel>() {
 
         override val modelClass = FormViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if(modelClass.isAssignableFrom(this.modelClass)) {
-                return FormViewModel(rest, config, locationManager) as T
+                return FormViewModel(rest, config, locationManager, fileUploader) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }

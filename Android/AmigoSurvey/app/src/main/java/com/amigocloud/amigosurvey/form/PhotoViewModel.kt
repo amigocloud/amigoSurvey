@@ -17,6 +17,7 @@ import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import com.amigocloud.amigosurvey.models.RelatedRecord
+import com.amigocloud.amigosurvey.repository.Repository
 import com.amigocloud.amigosurvey.repository.SurveyConfig
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
@@ -29,12 +30,13 @@ import java.io.IOException
 import java.text.DateFormat
 import java.util.*
 import javax.inject.Inject
+import javax.inject.Singleton
 
 class PhotoInfo(val datasetId: Long, val relatedTableId: Long, val sourceAmigoId: String, var imageFile: File?)
 
-class PhotoViewModel(private val config: SurveyConfig
-//                     ,private val repository: Repository
-                                            ): ViewModel() {
+@Singleton
+class PhotoViewModel @Inject constructor(private val config: SurveyConfig,
+                                         private val repository: Repository): ViewModel() {
 
     fun addImageToGallery(activity: Activity, filePath: String) {
         val values = ContentValues()
@@ -197,7 +199,7 @@ class PhotoViewModel(private val config: SurveyConfig
                 location = "",
                 amigo_id = UUID.randomUUID().toString().replace("-", ""),
                 relatedTableId = relatedTableId.toString())
-//        repository.db.relatedRecordDao().insert(record)
+        repository.relatedRecordDao().insert(record)
         return true
     }
 
@@ -389,13 +391,14 @@ class PhotoViewModel(private val config: SurveyConfig
     }
 
     @Suppress("UNCHECKED_CAST")
-    class Factory @Inject constructor(private val config: SurveyConfig) : ViewModelFactory<PhotoViewModel>() {
+    class Factory @Inject constructor(private val config: SurveyConfig,
+                                      private val repository: Repository) : ViewModelFactory<PhotoViewModel>() {
 
         override val modelClass = PhotoViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if(modelClass.isAssignableFrom(this.modelClass)) {
-                return PhotoViewModel(config) as T
+                return PhotoViewModel(config, repository) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }

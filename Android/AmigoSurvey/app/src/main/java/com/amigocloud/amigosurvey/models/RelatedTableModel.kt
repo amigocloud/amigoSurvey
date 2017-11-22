@@ -1,7 +1,6 @@
 package com.amigocloud.amigosurvey.models
 
 import android.arch.persistence.room.*
-import android.arch.persistence.room.RoomDatabase
 
 data class RelatedTableModel(
         var id: Long = 0,

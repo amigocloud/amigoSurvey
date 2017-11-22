@@ -30,8 +30,6 @@ import android.webkit.WebView
 import android.widget.ProgressBar
 import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
-import com.amigocloud.amigosurvey.models.FormModel
-import com.amigocloud.amigosurvey.models.RelatedTableModel
 import toothpick.Toothpick
 import javax.inject.Inject
 import android.content.Intent
@@ -42,6 +40,8 @@ import android.provider.MediaStore
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.android.IntentIntegrator
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
 import java.text.SimpleDateFormat
@@ -69,9 +69,8 @@ class FormActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var viewModel: FormViewModel
     private lateinit var photoViewModel: PhotoViewModel
+    private lateinit var fileUploader: FileUploader
     private lateinit var changesetViewModel: ChangesetViewModel
-    private lateinit var relatedTables: List<RelatedTableModel>
-    private lateinit var forms: FormModel
     private lateinit var bridge: AmigoBridge
     private var ready: Boolean = false
 
@@ -138,6 +137,16 @@ class FormActivity : AppCompatActivity() {
         fun onSave() {
             Log.e("---", "save")
             bridge.submit()
+            uploadPhotos()
+        }
+
+        fun uploadPhotos() {
+            viewModel.uploadPhotos(project_id, dataset_id)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe { progress ->
+                        Log.w("---", progress.toString())
+                    }
         }
 
         fun onGPSInfo() {

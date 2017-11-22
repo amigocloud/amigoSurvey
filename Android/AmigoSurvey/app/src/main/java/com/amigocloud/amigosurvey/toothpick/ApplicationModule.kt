@@ -1,7 +1,10 @@
 package com.amigocloud.amigosurvey.toothpick
 
 import android.app.Application
+import android.arch.persistence.room.Room
+import android.arch.persistence.room.RoomDatabase
 import com.amigocloud.amigosurvey.repository.AmigoApi
+import com.amigocloud.amigosurvey.repository.AppDatabase
 import com.amigocloud.amigosurvey.toothpick.provider.ApiProvider
 import com.amigocloud.amigosurvey.toothpick.provider.HttpClientProvider
 import com.amigocloud.amigosurvey.toothpick.provider.RetrofitProvider
@@ -26,5 +29,9 @@ class ApplicationModule(app: Application) : SmoothieApplicationModule(app) {
         bind(RxLocationManager::class.java).toInstance(RxLocationManager(app.applicationContext))
         bind(File::class.java).withName(FileDir::class.java).toInstance(app.filesDir)
         bind(File::class.java).withName(CacheDir::class.java).toInstance(app.cacheDir)
+        bind(AppDatabase::class.java).toInstance(Room.databaseBuilder(
+                app,
+                AppDatabase::class.java,
+                "amigosurvey-db").allowMainThreadQueries().build())
     }
 }
