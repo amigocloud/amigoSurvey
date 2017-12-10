@@ -1,6 +1,7 @@
 package com.amigocloud.amigosurvey.repository
 
 import android.support.v4.media.VolumeProviderCompat
+import com.amigocloud.amigosurvey.form.ChunkedUploadResponse
 import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
@@ -100,6 +101,20 @@ interface AmigoApi {
               @Field("client_secret") client_secret: String,
               @Field("grant_type") grant_type: String,
               @Field("refresh_token") refresh_token: String): Single<AmigoToken>
+
+    @POST
+    fun chunkedUpload(@Url url: String,
+                      @Body body: RequestBody,
+                      @HeaderMap headers: Map<String, String>): Single<ChunkedUploadResponse>
+
+    @POST
+    @FormUrlEncoded
+    fun chunkedUploadComplete(@Url url: String,
+                              @Field("upload_id") upload_id: String,
+                              @Field("md5") md5: String,
+                              @Field("source_amigo_id") source_amigo_id: String,
+                              @Field("filename") filename: String,
+                              @HeaderMap headers: Map<String, String>): Single<ChunkedUploadResponse>
 }
 
 data class UserJSON(
@@ -216,6 +231,19 @@ class AmigoRest @Inject constructor(
 
     fun submitChangeset(url: String, body: RequestBody): Single<Any> =
             amigoApi.submitChangeset(url, body)
+
+    fun chunkedUpload(url: String,
+                      body: RequestBody,
+                      headers: Map<String, String>): Single<ChunkedUploadResponse> =
+            amigoApi.chunkedUpload(url, body, headers)
+
+    fun chunkedUploadComplete(url: String,
+                              upload_id: String,
+                              md5: String,
+                              source_amigo_id: String,
+                              filename: String,
+                              headers: Map<String, String>): Single<ChunkedUploadResponse> =
+            amigoApi.chunkedUploadComplete(url, upload_id, md5, source_amigo_id, filename, headers)
 
     internal fun refreshToken(): Single<AmigoToken> = token?.let {
         amigoApi.refreshToken(

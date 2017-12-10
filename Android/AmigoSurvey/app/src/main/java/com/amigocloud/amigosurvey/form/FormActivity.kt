@@ -20,6 +20,7 @@
  */
 package com.amigocloud.amigosurvey.form
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
@@ -33,14 +34,19 @@ import com.amigocloud.amigosurvey.R
 import toothpick.Toothpick
 import javax.inject.Inject
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.android.IntentIntegrator
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
@@ -56,6 +62,8 @@ class FormActivity : AppCompatActivity() {
         val BASE_URL = "https://www.amigocloud.com"
         internal val FORM_FRAGMENT_TAG = "FORM_FRAGMENT_TAG"
     }
+
+    val MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 7
 
     val REQUEST_IMAGE_CAPTURE = 1
     val REQUEST_VIDEO_CAPTURE = 2
@@ -73,6 +81,8 @@ class FormActivity : AppCompatActivity() {
     private lateinit var changesetViewModel: ChangesetViewModel
     private lateinit var bridge: AmigoBridge
     private var ready: Boolean = false
+
+    private var disposables = CompositeDisposable()
 
     private var photoInfo: PhotoInfo? = null
 
@@ -124,197 +134,250 @@ class FormActivity : AppCompatActivity() {
                     when {
                         location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
                         location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
-                        location.accuracy >  65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
+                        location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
                     }
                 } else {
                     gps_info_button.setBackgroundResource(R.drawable.gps_off)
                 }
-            }})
-            viewModel.onFetchForm(project_id, dataset_id)
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
-
-        fun onSave() {
-            Log.e("---", "save")
-            bridge.submit()
-            uploadPhotos()
-        }
-
-        fun uploadPhotos() {
-            viewModel.uploadPhotos(project_id, dataset_id)
-                    .subscribeOn(Schedulers.io())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe { progress ->
-                        Log.w("---", progress.toString())
-                    }
-        }
-
-        fun onGPSInfo() {
-            val ad = AlertDialog.Builder(this)
-            ad.setTitle(getString(R.string.gps_info))
-            val msg = StringBuffer()
-            msg.append(getString(R.string.latitude) + ": \t${bridge.lastLocation.latitude}\n")
-            msg.append(getString(R.string.longitude)+ ": \t${bridge.lastLocation.longitude}\n")
-            msg.append(getString(R.string.accuracy)+ ": \t${bridge.lastLocation.accuracy}\n")
-            ad.setMessage(msg.toString())
-            ad.setNegativeButton(getString(R.string.ui_cancel), null)
-            ad.show()
-        }
-
-        fun addNewRecord(rec:String) {
-            changesetViewModel.addNewRecord(rec, viewModel.project.get(), viewModel.dataset.get())
-                    .doOnError { error ->
-                        Log.e("---", error.toString())
-                    }
-                    .subscribe({ it ->
-                        Log.e("---", it.toString())
-                    })
-
-        }
-
-        fun isReady(): Boolean {
-            return ready
-        }
-
-        fun getWebView() = this.webView
-
-        fun getViewModel() = this.viewModel
-
-        fun _loadForm(state: FormViewState) {
-            bridge.formType = "create_block"
-            webView.let { webView ->
-                webView.addJavascriptInterface(bridge, "AmigoPlatform")
-//            webView.loadUrl("window.onerror = function (message, url, lineNumber) {AmigoPlatform.onException(message + ' URL: ' + url + ' Line:' + lineNumber);}")
-                val html = state.form?.base_form?.replaceFirst("<base href=\".*\".*>".toRegex(), "")
-                val url = "file://" + state.webFormDir + bridge.formType
-                webView.loadDataWithBaseURL(url, html, "text/html", "UTF-8", "")
             }
-        }
+        })
+        viewModel.onFetchForm(project_id, dataset_id)
+        WebView.setWebContentsDebuggingEnabled(true)
 
-        fun takePhoto(relatedTableId: String , amigoId: String ) {
-            val builder = AlertDialog.Builder(this)
-            val entries = arrayOf<String>(this.getString(R.string.take_photo), this.getString(R.string.capture_video), this.getString(R.string.use_existing_file))
-            builder.setItems(entries) { dialogInterface, which ->
-                if (which == 0 || which == 1) {
-                    val takePictureIntent: Intent
-                    val fileExtension: String
-                    var mode = 0
-                    if (which == 0) {
-                        fileExtension = ".jpg"
-                        takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                        mode = REQUEST_IMAGE_CAPTURE
-                    } else {
-                        fileExtension = ".mp4"
-                        takePictureIntent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
-                        mode = REQUEST_VIDEO_CAPTURE
-                    }
-                    val storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString() + File.separator + "amigocloud"
-                    val storageDirFile = File(storageDir)
-                    if (!storageDirFile.exists())
-                        storageDirFile.mkdirs()
-                    val timeStamp = SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.US).format(Date())
+        checkPermissions()
+    }
 
-                    val image = File(storageDir, relatedTableId + timeStamp + fileExtension)
+    override fun onDestroy() {
+        super.onDestroy()
+        disposables.dispose()
+    }
 
-                    this.setPhotoInfo(PhotoInfo(dataset_id, java.lang.Long.parseLong(relatedTableId), amigoId, image))
-                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(image))
-                    try {
-                        this.startActivityForResult(takePictureIntent, mode)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+    fun onSave() {
+        Log.e("---", "save")
+        bridge.submit()
+        uploadPhotos()
+    }
 
-                } else {
-                    this.setPhotoInfo(PhotoInfo(dataset_id, java.lang.Long.parseLong(relatedTableId), amigoId, null))
-                    val photoPickerIntent = Intent(Intent.ACTION_GET_CONTENT, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-                    photoPickerIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
-                    photoPickerIntent.type = "image/* video/* audio/* text/* application/*"
-                    try {
-                        this.startActivityForResult(photoPickerIntent, REQUEST_PHOTO_GALLERY)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+    fun uploadPhotos() {
+        disposables.add(viewModel.uploadPhotos(project_id, dataset_id)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe({ progress ->
+                    Log.w("---4---", progress.toString())
+                }, { error ->
+                    Log.e("---3---", error.toString(), error)
+                }))
+    }
+
+    fun onGPSInfo() {
+        val ad = AlertDialog.Builder(this)
+        ad.setTitle(getString(R.string.gps_info))
+        val msg = StringBuffer()
+        msg.append(getString(R.string.latitude) + ": \t${bridge.lastLocation.latitude}\n")
+        msg.append(getString(R.string.longitude) + ": \t${bridge.lastLocation.longitude}\n")
+        msg.append(getString(R.string.accuracy) + ": \t${bridge.lastLocation.accuracy}\n")
+        ad.setMessage(msg.toString())
+        ad.setNegativeButton(getString(R.string.ui_cancel), null)
+        ad.show()
+    }
+
+    fun addNewRecord(rec: String) {
+        changesetViewModel.addNewRecord(rec, viewModel.project.get(), viewModel.dataset.get())
+                .doOnError { error ->
+                    Log.e("---", error.toString())
                 }
-                dialogInterface.dismiss()
-            }
-            builder.create().show()
-        }
-
-        fun setPhotoInfo(photoInfo: PhotoInfo) {
-            this.photoInfo = photoInfo
-        }
-
-        override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-            super.onActivityResult(requestCode, resultCode, data)
-
-            if(resultCode == Activity.RESULT_OK && requestCode != IntentIntegrator.REQUEST_CODE)
-                bridge.mediaAdded()
-
-            if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
-                photoInfo?.let { photoViewModel.savePhoto(this, it).subscribe() }
-            } else if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == Activity.RESULT_OK) {
-                photoInfo?.let { photoViewModel.saveVideo(this, it).subscribe() }
-            } else if (requestCode == REQUEST_PHOTO_GALLERY && resultCode == Activity.RESULT_OK)
-            {
-                // Save multiple selected files
-                photoInfo?.let { photoInfo ->
-                    data?.let { data ->
-                        if (data.clipData != null) {
-                            var count = data.clipData.getItemCount()
-                            var i = 0
-                            while (i < count) {
-                                val item = data.clipData.getItemAt(i)
-                                photoViewModel.saveFile(this, photoInfo, item.uri).subscribe()
-                                i++
-                            }
-                        } else if(data.data != null) {
-                            photoViewModel.saveFile(this, photoInfo, data.data).subscribe()
-                        }
-                    }
-                }
-            } else if (requestCode == IntentIntegrator.REQUEST_CODE) {
-                data?.let {
-                    val scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
-                    scanResult?.let {
-                        var br = scanResult.contents
-                        val barcode = br.replace("\n", "")
-                        barcode.let {
-                            onBarcodeScanInForm(barcode, photoInfo)
-                        }
-                    }
-                }
-            }
-        }
-
-
-        private fun onBarcodeScanInForm(barcode: String, photoInfo: PhotoInfo?) {
-            // Received data from barcode scanner
-            photoInfo?.let {
-                val datasetId = it.datasetId
-                val amigoId = it.sourceAmigoId
-                val ad = AlertDialog.Builder(this)
-                ad.setTitle(getString(R.string.barcode_scanned))
-                ad.setMessage(getString(R.string.use_this_value) + barcode)
-                ad.setNegativeButton(getString(R.string.ui_no), null)
-                ad.setPositiveButton(getString(R.string.ui_yes)) { dialogInterface, i ->
-                    // Retrieve barcode filed name
-                    viewModel.getCustomFieldName("barcode")
-                            .subscribe({ field_name ->
-                                bridge.setCustomFieldValue(field_name, barcode)
-//                          recordHistoryRead(amigoId, datasetId, barcode)
-                            })
-                }
-                ad.show()
-            }
-        }
-
-        fun scanBarcode(amigoId: String) {
-            val integrator = IntentIntegrator(this)
-            setPhotoInfo(PhotoInfo(dataset_id, 0, amigoId, null))
-            integrator.initiateScan()
-        }
+                .subscribe({ it ->
+                    Log.e("---", it.toString())
+                })
 
     }
+
+    fun isReady(): Boolean {
+        return ready
+    }
+
+    fun getWebView() = this.webView
+
+    fun getViewModel() = this.viewModel
+
+    fun _loadForm(state: FormViewState) {
+        bridge.formType = "create_block"
+        webView.let { webView ->
+            webView.addJavascriptInterface(bridge, "AmigoPlatform")
+//            webView.loadUrl("window.onerror = function (message, url, lineNumber) {AmigoPlatform.onException(message + ' URL: ' + url + ' Line:' + lineNumber);}")
+            val html = state.form?.base_form?.replaceFirst("<base href=\".*\".*>".toRegex(), "")
+            val url = "file://" + state.webFormDir + bridge.formType
+            webView.loadDataWithBaseURL(url, html, "text/html", "UTF-8", "")
+        }
+    }
+
+    fun takePhoto(relatedTableId: String, amigoId: String) {
+        val builder = AlertDialog.Builder(this)
+        val entries = arrayOf<String>(this.getString(R.string.take_photo), this.getString(R.string.capture_video), this.getString(R.string.use_existing_file))
+        builder.setItems(entries) { dialogInterface, which ->
+            if (which == 0 || which == 1) {
+                val takePictureIntent: Intent
+                val fileExtension: String
+                var mode = 0
+                if (which == 0) {
+                    fileExtension = ".jpg"
+                    takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                    mode = REQUEST_IMAGE_CAPTURE
+                } else {
+                    fileExtension = ".mp4"
+                    takePictureIntent = Intent(MediaStore.ACTION_VIDEO_CAPTURE)
+                    mode = REQUEST_VIDEO_CAPTURE
+                }
+                val storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).toString() + File.separator + "amigocloud"
+                val storageDirFile = File(storageDir)
+                if (!storageDirFile.exists())
+                    storageDirFile.mkdirs()
+                val timeStamp = SimpleDateFormat("yyyyMMddHHmmssSSS", Locale.US).format(Date())
+
+                val image = File(storageDir, relatedTableId + timeStamp + fileExtension)
+
+                this.setPhotoInfo(PhotoInfo(dataset_id, java.lang.Long.parseLong(relatedTableId), amigoId, image))
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(image))
+                try {
+                    this.startActivityForResult(takePictureIntent, mode)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+            } else {
+                this.setPhotoInfo(PhotoInfo(dataset_id, java.lang.Long.parseLong(relatedTableId), amigoId, null))
+                val photoPickerIntent = Intent(Intent.ACTION_GET_CONTENT, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                photoPickerIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                photoPickerIntent.type = "image/* video/* audio/* text/* application/*"
+                try {
+                    this.startActivityForResult(photoPickerIntent, REQUEST_PHOTO_GALLERY)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            dialogInterface.dismiss()
+        }
+        builder.create().show()
+    }
+
+    fun setPhotoInfo(photoInfo: PhotoInfo) {
+        this.photoInfo = photoInfo
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == Activity.RESULT_OK && requestCode != IntentIntegrator.REQUEST_CODE)
+            bridge.mediaAdded()
+
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
+            photoInfo?.let { photoViewModel.savePhoto(this, it).subscribe() }
+        } else if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == Activity.RESULT_OK) {
+            photoInfo?.let { photoViewModel.saveVideo(this, it).subscribe() }
+        } else if (requestCode == REQUEST_PHOTO_GALLERY && resultCode == Activity.RESULT_OK) {
+            // Save multiple selected files
+            photoInfo?.let { photoInfo ->
+                data?.let { data ->
+                    if (data.clipData != null) {
+                        var count = data.clipData.getItemCount()
+                        var i = 0
+                        while (i < count) {
+                            val item = data.clipData.getItemAt(i)
+                            photoViewModel.saveFile(this, photoInfo, item.uri).subscribe()
+                            i++
+                        }
+                    } else if (data.data != null) {
+                        photoViewModel.saveFile(this, photoInfo, data.data).subscribe()
+                    }
+                }
+            }
+        } else if (requestCode == IntentIntegrator.REQUEST_CODE) {
+            data?.let {
+                val scanResult = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+                scanResult?.let {
+                    var br = scanResult.contents
+                    val barcode = br.replace("\n", "")
+                    barcode.let {
+                        onBarcodeScanInForm(barcode, photoInfo)
+                    }
+                }
+            }
+        }
+    }
+
+
+    private fun onBarcodeScanInForm(barcode: String, photoInfo: PhotoInfo?) {
+        // Received data from barcode scanner
+        photoInfo?.let {
+            val datasetId = it.datasetId
+            val amigoId = it.sourceAmigoId
+            val ad = AlertDialog.Builder(this)
+            ad.setTitle(getString(R.string.barcode_scanned))
+            ad.setMessage(getString(R.string.use_this_value) + barcode)
+            ad.setNegativeButton(getString(R.string.ui_no), null)
+            ad.setPositiveButton(getString(R.string.ui_yes)) { dialogInterface, i ->
+                // Retrieve barcode filed name
+                viewModel.getCustomFieldName("barcode")
+                        .subscribe({ field_name ->
+                            bridge.setCustomFieldValue(field_name, barcode)
+//                          recordHistoryRead(amigoId, datasetId, barcode)
+                        })
+            }
+            ad.show()
+        }
+    }
+
+    fun scanBarcode(amigoId: String) {
+        val integrator = IntentIntegrator(this)
+        setPhotoInfo(PhotoInfo(dataset_id, 0, amigoId, null))
+        integrator.initiateScan()
+    }
+
+    fun checkPermissions() {
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.READ_CONTACTS)) {
+
+                // Show an explanation to the user *asynchronously* -- don't block
+                // this thread waiting for the user's response! After the user
+                // sees the explanation, try again to request the permission.
+
+            } else {
+
+                // No explanation needed, we can request the permission.
+
+                ActivityCompat.requestPermissions(this,
+                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                        MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE)
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int,
+                                            permissions: Array<String>, grantResults: IntArray) {
+        when (requestCode) {
+            MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE -> {
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+                    // permission was granted, yay! Do the
+                    // contacts-related task you need to do.
+
+                } else {
+
+                    // permission denied, boo! Disable the
+                    // functionality that depends on this permission.
+                }
+                return
+            }
+        }// other 'case' lines to check for other
+        // permissions this app might request
+    }
+}
 
 
 

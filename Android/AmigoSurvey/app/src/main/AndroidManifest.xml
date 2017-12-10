@@ -10,11 +10,12 @@
 
     <application
         android:name=".MyApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@drawable/ac_icon_180x"
         android:label="@string/app_name"
         android:roundIcon="@drawable/ac_icon_180x"
         android:supportsRtl="true"
+        android:largeHeap="true"
         android:theme="@style/NoBar">
         <activity
             android:name=".login.LoginActivity"
