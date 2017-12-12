@@ -27,6 +27,7 @@ import android.arch.lifecycle.ViewModel
 import android.databinding.ObservableField
 import android.location.Location
 import android.location.LocationManager
+import android.util.Log
 import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.SurveyConfig
@@ -100,8 +101,14 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     val project = ObservableField<ProjectModel>()
     val related_tables = ObservableField<List<RelatedTableModel>>()
     val schema = ObservableField<List<Any>>()
+    var recordJSON: String? = null
 
     val events: LiveData<FormViewState> = LiveDataReactiveStreams.fromPublisher(processor
+            .filter { (pId, dId) ->
+                // Prevent from creating the same state multiple times
+                !((project.get() != null && project.get().id == pId) ||
+                  (dataset.get() != null && dataset.get().id == dId))
+            }
             .flatMapSingle { (pId, dId) ->
                 loadProjectAndDataset(pId, dId)
                         .doOnSuccess { (p, d) ->
@@ -121,18 +128,21 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                     related_tables.set(rt)
                                 }}
                         .flatMap { fetchSchema().doOnSuccess { sc -> schema.set(sc) }}
-                        .flatMap { fetchHistoryDataset() }
-                        .map {
-                            if (it.isNotEmpty()) {
-                                history_dataset.set(it[0])
-                                project.get().history_dataset_id = history_dataset.get().id.toString()
-                            }
+                        .flatMap { fetchHistoryDataset()
+                                .doOnSuccess {
+                                    if (it.isNotEmpty()) {
+                                        history_dataset.set(it[0])
+                                        project.get().history_dataset_id = history_dataset.get().id.toString()
+                                    }
+                                }
                         }
                         .flatMap { fetchForm() }
                         .map {
                             var create_block_json: Any = "{}"
                             it.create_block_json?.let{ create_block_json = it }
-
+                            if (recordJSON == null) {
+                                recordJSON = getNewRecordJSON()
+                            }
                             FormViewState(
                                     userJson = getUserJSON(user.get()),
                                     project = project.get(),
@@ -140,7 +150,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                     form = it,
                                     webFormDir = config.webFormDir,
                                     schemaJson = rest.getListJSON(schema.get()),
-                                    recordJson = getNewRecordJSON(),
+                                    recordJson = recordJSON!!,
                                     relatedTablesJson = getRelatedTablesJSON(),
                                     projectJson = rest.getProjectJSON(project.get()),
                                     formDescription = rest.getJSON(create_block_json),
@@ -253,6 +263,9 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
 
     fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileUploadProgress>
             = fileUploader.uploadAllPhotos(projectId, datasetId)
+
+    fun deletePhotoRecord(record: RelatedRecord)
+            = fileUploader.deletePhoto(record)
 
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest,

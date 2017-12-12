@@ -25,7 +25,7 @@ import android.webkit.JavascriptInterface
 import android.content.Intent
 import android.location.Location
 import android.net.Uri
-
+import android.util.Log
 
 
 class AmigoBridge(private val formActivity: FormActivity) {
@@ -119,8 +119,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
     @JavascriptInterface
     fun getFormDescription(datasetId: String, formType: String): String {
         if (formType == "create") {
-            val json = formViewState.formDescription
-            return json
+            return formViewState.formDescription
         }
         return "{}"
     }
@@ -226,6 +225,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun getNewRow(datasetId: String): String {
+        Log.e("--getNewRow--", datasetId)
         try {
             return "" //AmigoCloudAPI.getNewRecordJSONForDataset(java.lang.Long.parseLong(datasetId))
         } catch (e: NumberFormatException) {

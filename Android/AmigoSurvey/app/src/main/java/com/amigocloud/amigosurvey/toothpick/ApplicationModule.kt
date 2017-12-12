@@ -32,6 +32,6 @@ class ApplicationModule(app: Application) : SmoothieApplicationModule(app) {
         bind(AppDatabase::class.java).toInstance(Room.databaseBuilder(
                 app,
                 AppDatabase::class.java,
-                "amigosurvey-db2").allowMainThreadQueries().build())
+                "amigosurvey-db").allowMainThreadQueries().build())
     }
 }

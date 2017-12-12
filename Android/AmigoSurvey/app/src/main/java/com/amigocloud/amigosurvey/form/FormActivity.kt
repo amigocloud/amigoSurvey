@@ -41,6 +41,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.support.v4.app.ActivityCompat
 import android.support.v4.content.ContextCompat
+import android.support.v4.content.FileProvider
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.android.IntentIntegrator
@@ -64,6 +65,7 @@ class FormActivity : AppCompatActivity() {
     }
 
     val MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 7
+    val MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 8
 
     val REQUEST_IMAGE_CAPTURE = 1
     val REQUEST_VIDEO_CAPTURE = 2
@@ -164,6 +166,11 @@ class FormActivity : AppCompatActivity() {
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ progress ->
                     Log.w("---4---", progress.toString())
+                    // If file uploaded successfully
+                    if(progress.bytesSent.toLong() == progress.bytesTotal) {
+                        progress.record?.let { viewModel.deletePhotoRecord(it) }
+                        Log.w("---5---", "Delete record: " + progress.record.toString())
+                    }
                 }, { error ->
                     Log.e("---3---", error.toString(), error)
                 }))
@@ -189,7 +196,6 @@ class FormActivity : AppCompatActivity() {
                 .subscribe({ it ->
                     Log.e("---", it.toString())
                 })
-
     }
 
     fun isReady(): Boolean {
@@ -236,8 +242,11 @@ class FormActivity : AppCompatActivity() {
 
                 val image = File(storageDir, relatedTableId + timeStamp + fileExtension)
 
+                val photoURI = FileProvider.getUriForFile(this, "com.amigocloud.amigosurvey.fileprovider", image)
+
                 this.setPhotoInfo(PhotoInfo(dataset_id, java.lang.Long.parseLong(relatedTableId), amigoId, image))
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(image))
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 try {
                     this.startActivityForResult(takePictureIntent, mode)
                 } catch (e: Exception) {
@@ -340,19 +349,24 @@ class FormActivity : AppCompatActivity() {
 
             // Should we show an explanation?
             if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.READ_CONTACTS)) {
-
-                // Show an explanation to the user *asynchronously* -- don't block
-                // this thread waiting for the user's response! After the user
-                // sees the explanation, try again to request the permission.
-
+                    Manifest.permission.READ_EXTERNAL_STORAGE)) {
             } else {
-
-                // No explanation needed, we can request the permission.
-
                 ActivityCompat.requestPermissions(this,
                         arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
                         MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE)
+            }
+        }
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            // Should we show an explanation?
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+            } else {
+                ActivityCompat.requestPermissions(this,
+                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                        MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE)
             }
         }
     }
@@ -363,17 +377,16 @@ class FormActivity : AppCompatActivity() {
             MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE -> {
                 // If request is cancelled, the result arrays are empty.
                 if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-                    // permission was granted, yay! Do the
-                    // contacts-related task you need to do.
-
-                } else {
-
-                    // permission denied, boo! Disable the
-                    // functionality that depends on this permission.
                 }
                 return
             }
+
+            MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE -> {
+                if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                }
+                return
+            }
+
         }// other 'case' lines to check for other
         // permissions this app might request
     }

@@ -10,9 +10,7 @@ import io.reactivex.Observable
 import io.reactivex.Single
 import okhttp3.MediaType
 import okhttp3.RequestBody
-import okio.ByteString
 import java.io.File
-import java.nio.charset.Charset
 import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,7 +25,9 @@ data class FileUploadProgress (
     var message: String = "",
     var statusCode: Int = -1,
     var fileIndex: Int = 0,
-    var filesTotal: Int = 0 )
+    var filesTotal: Int = 0,
+    var record: RelatedRecord? = null
+)
 
 data class FileChunk (
         var fileName: String = "",
@@ -55,6 +55,10 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                     uploadPhoto(index++, it, projectId, datasetId, totalPhotos)
                 }
 
+    }
+
+    fun deletePhoto(record: RelatedRecord) {
+        repository.relatedRecordDao().delete(record)
     }
 
     fun getAllPhotos(): Observable<RelatedRecord> {
@@ -100,26 +104,31 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                 .flatMapObservable { (chunks, firstChunk) ->
                     val uploadId = firstChunk.second.upload_id
                     val observables = mutableListOf<Observable<FileChunk>>(Observable.just(firstChunk.first))
-                    chunks.forEachIndexed() { index, chunk ->
+                    var lastChunk : FileChunk? = null
+                    chunks.forEachIndexed { index, chunk ->
+                        if (chunk.last) lastChunk = chunk
                         if(index > 0) {
                             observables.add(postFileChunk(uploadId, "", chunk)
                                     .toObservable().map { chunk })
                         }
                     }
-                    firstChunk.first.urlStr = url_complete
-                    firstChunk.first.ctype = "application/x-www-form-urlencoded"
-                    observables.add(postFileComplete(uploadId, md5, firstChunk.first)
-                            .toObservable().map { firstChunk.first })
+                    lastChunk?.let { lastChunk ->
+                        lastChunk.urlStr = url_complete
+                        lastChunk.ctype = "application/x-www-form-urlencoded"
+                        observables.add(postFileComplete(uploadId, md5, lastChunk)
+                                .toObservable().map { lastChunk })
 
-                    Observable.concat(observables)
+                        Observable.concat(observables)
+                    }
                 }
                 .map { fileChunk ->
-                    FileUploadProgress(fileChunk.firstByte,
+                    FileUploadProgress(fileChunk.firstByte + fileChunk.chunkSize,
                             fileChunk.fileSize,
                             record.filename,
                             200,
                             fileIndex,
-                            filesTotal)
+                            filesTotal,
+                            fileChunk.record)
                 }
     }
 
@@ -130,11 +139,9 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             var bytesRead = 0
             val chunkList = mutableListOf<FileChunk>()
             file.forEachBlock(blockSize = chunkSize, action = { buffer, count ->
-                Log.e("--- file block --------", "count = " + count.toString())
-
                         bytesRead += count
-                        val last = (bytesRead >= totalBytes)
-                chunkList.add(FileChunk(fname, url, buffer, bytesRead-count, chunkSize, totalBytes, record, last = last))
+                        val isLast = (bytesRead >= totalBytes)
+                        chunkList.add(FileChunk(fname, url, buffer, bytesRead-count, count, totalBytes, record, isLast))
                     })
             emitter.onSuccess(chunkList)
         }
@@ -144,12 +151,9 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
         val bodyStr = createBodyForFileUpload(upload_id, md5, chunk)
         var bytes = ByteArray(bodyStr.count())
         bodyStr.asSequence().forEachIndexed { index, byte -> bytes.set(index, byte.toByte())}
-        Log.e("--- bytes length ---", bytes.count().toString())
         val body = RequestBody.create(MediaType.parse(chunk.ctype), bytes)
         val headers = mapOf(Pair("Content-Type", chunk.ctype),
                 Pair("Content-Range", "bytes ${chunk.firstByte}-${chunk.firstByte+chunk.chunkSize-1}/${chunk.fileSize}"))
-
-        Log.e("--- headers ---", headers.toString())
         return rest.chunkedUpload(chunk.urlStr, body, headers)
     }
 
@@ -185,15 +189,14 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             body.append("Content-Disposition: form-data; name=\"datafile\"; filename=\"${chunk.fileName}\"\r\n")
             body.append("Content-Type: $mimeType\r\n\r\n")
 
-            Log.e("--- body.length 1 ---", body.length.toString())
-            Log.e("--- chunk.data.size ---", chunk.data?.size.toString())
-
             chunk.data?.let {
-                it.asSequence().forEach { body.append(it.toChar()) }
+                it.asSequence().forEachIndexed{ index, byte ->
+                    if (index < chunk.chunkSize)
+                        body.append(byte.toChar())
+                }
             }
             body.append("\r\n")
             body.append("--${chunk.boundary}--")
-            Log.e("--- body.length 2 ---", body.length.toString())
         }
         return body.toString()
     }

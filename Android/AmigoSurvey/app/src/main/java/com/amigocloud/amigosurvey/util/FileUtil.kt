@@ -9,9 +9,15 @@ import java.time.Clock
 import java.util.*
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
+import android.support.v4.content.FileProvider
+
+
 
 
 const val TAG = "FileUtil"
+
+
+class GenericFileProvider : FileProvider()
 
 fun mkdir(path: String, dirname: String): Boolean {
     // Get the directory for the user's public pictures directory.

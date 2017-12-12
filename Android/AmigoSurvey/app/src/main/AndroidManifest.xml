@@ -28,6 +28,16 @@
         </activity>
         <activity android:name=".selector.SelectorActivity" />
         <activity android:name=".form.FormActivity" />
+
+        <provider
+            android:name="com.amigocloud.amigosurvey.util.GenericFileProvider"
+            android:authorities="com.amigocloud.amigosurvey.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/provider_paths"/>
+        </provider>
     </application>
 
 </manifest>
