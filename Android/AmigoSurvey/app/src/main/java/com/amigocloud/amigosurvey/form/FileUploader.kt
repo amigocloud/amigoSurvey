@@ -99,7 +99,7 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
         return getFileChunks(url, path, record.filename, chunkSize, record)
                 .filter { it.isNotEmpty() }
                 .flatMapSingle { chunks ->
-                    postFileChunk("", "", chunks[0]).map { chunks.to(chunks[0].to(it)) }
+                    postFileChunkFirst(chunks[0]).map { chunks.to(chunks[0].to(it)) }
                 }
                 .flatMapObservable { (chunks, firstChunk) ->
                     val uploadId = firstChunk.second.upload_id
@@ -108,15 +108,15 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                     chunks.forEachIndexed { index, chunk ->
                         if (chunk.last) lastChunk = chunk
                         if(index > 0) {
-                            observables.add(postFileChunk(uploadId, "", chunk)
+                            observables.add(postFileChunk(uploadId, chunk)
                                     .toObservable().map { chunk })
                         }
                     }
-                    lastChunk?.let { lastChunk ->
-                        lastChunk.urlStr = url_complete
-                        lastChunk.ctype = "application/x-www-form-urlencoded"
-                        observables.add(postFileComplete(uploadId, md5, lastChunk)
-                                .toObservable().map { lastChunk })
+                    lastChunk?.let { lc ->
+                        lc.urlStr = url_complete
+                        lc.ctype = "application/x-www-form-urlencoded"
+                        observables.add(postFileComplete(uploadId, md5, lc)
+                                .toObservable().map { lc })
 
                         Observable.concat(observables)
                     }
@@ -147,14 +147,39 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
         }
     }
 
-    fun postFileChunk(upload_id: String, md5: String, chunk: FileChunk): Single<ChunkedUploadResponse> {
-        val bodyStr = createBodyForFileUpload(upload_id, md5, chunk)
-        var bytes = ByteArray(bodyStr.count())
-        bodyStr.asSequence().forEachIndexed { index, byte -> bytes.set(index, byte.toByte())}
-        val body = RequestBody.create(MediaType.parse(chunk.ctype), bytes)
-        val headers = mapOf(Pair("Content-Type", chunk.ctype),
+    fun postFileChunkFirst(chunk: FileChunk): Single<ChunkedUploadResponse> {
+        val body = RequestBody.create(MediaType.parse("image/*"), chunk.data, 0, chunk.chunkSize)
+
+        val bodyMap = mutableMapOf(
+                Pair("amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.amigo_id!!)),
+                Pair("source_amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.source_amigo_id!!)),
+                Pair("filename", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.fileName)),
+                Pair("datafile\"; filename=\"${chunk.fileName}", body))
+
+        val headers = mapOf(
                 Pair("Content-Range", "bytes ${chunk.firstByte}-${chunk.firstByte+chunk.chunkSize-1}/${chunk.fileSize}"))
-        return rest.chunkedUpload(chunk.urlStr, body, headers)
+        return rest.chunkedUploadFirst(
+                chunk.urlStr,
+                bodyMap,
+                headers)
+    }
+
+    fun postFileChunk(upload_id: String, chunk: FileChunk): Single<ChunkedUploadResponse> {
+        val body = RequestBody.create(MediaType.parse("image/*"), chunk.data, 0, chunk.chunkSize)
+
+        val bodyMap = mutableMapOf(
+                Pair("amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.amigo_id!!)),
+                Pair("source_amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.source_amigo_id!!)),
+                Pair("filename", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.fileName)),
+                Pair("upload_id", RequestBody.create(MediaType.parse("multipart/form-data"), upload_id)),
+                Pair("datafile\"; filename=\"${chunk.fileName}", body))
+
+        val headers = mapOf(
+                Pair("Content-Range", "bytes ${chunk.firstByte}-${chunk.firstByte+chunk.chunkSize-1}/${chunk.fileSize}"))
+        return rest.chunkedUpload(
+                chunk.urlStr,
+                bodyMap,
+                headers)
     }
 
     fun postFileComplete(upload_id: String, md5:String, chunk: FileChunk): Single<ChunkedUploadResponse> {
@@ -181,7 +206,7 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             body.append(getContentDisposition(boundaryPrefix, "source_amigo_id", record.source_amigo_id))
             body.append(getContentDisposition(boundaryPrefix, "upload_id", upload_id))
             if(md5.isNotEmpty()) {
-               body.append(getContentDisposition(boundaryPrefix, "md5", md5))
+                body.append(getContentDisposition(boundaryPrefix, "md5", md5))
                 body.append(getContentDisposition(boundaryPrefix, "filename", record.filename))
             }
             val mimeType = "image/*"
@@ -189,10 +214,14 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             body.append("Content-Disposition: form-data; name=\"datafile\"; filename=\"${chunk.fileName}\"\r\n")
             body.append("Content-Type: $mimeType\r\n\r\n")
 
+//            body.append(chunk.data.)
+
             chunk.data?.let {
                 it.asSequence().forEachIndexed{ index, byte ->
-                    if (index < chunk.chunkSize)
+                    if (index < chunk.chunkSize) {
+                        Log.e("--- chunk ---", "'$byte', '${byte.toInt()}', '${byte.toChar()}'")
                         body.append(byte.toChar())
+                    }
                 }
             }
             body.append("\r\n")

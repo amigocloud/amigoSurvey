@@ -103,9 +103,16 @@ interface AmigoApi {
               @Field("refresh_token") refresh_token: String): Single<AmigoToken>
 
     @POST
+    @Multipart
+    fun chunkedUploadFirst(@Url url: String,
+                       @PartMap body: MutableMap<String, RequestBody>,
+                       @HeaderMap headers: Map<String, String>): Single<ChunkedUploadResponse>
+
+    @POST
+    @Multipart
     fun chunkedUpload(@Url url: String,
-                      @Body body: RequestBody,
-                      @HeaderMap headers: Map<String, String>): Single<ChunkedUploadResponse>
+                       @PartMap body: MutableMap<String, RequestBody>,
+                       @HeaderMap headers: Map<String, String>): Single<ChunkedUploadResponse>
 
     @POST
     @FormUrlEncoded
@@ -232,10 +239,20 @@ class AmigoRest @Inject constructor(
     fun submitChangeset(url: String, body: RequestBody): Single<Any> =
             amigoApi.submitChangeset(url, body)
 
+    fun chunkedUploadFirst(url: String,
+                       body: MutableMap<String, RequestBody>,
+                       headers: Map<String, String>): Single<ChunkedUploadResponse> =
+            amigoApi.chunkedUploadFirst(url,
+                    body,
+                    headers)
+
     fun chunkedUpload(url: String,
-                      body: RequestBody,
-                      headers: Map<String, String>): Single<ChunkedUploadResponse> =
-            amigoApi.chunkedUpload(url, body, headers)
+                       body: MutableMap<String, RequestBody>,
+                       headers: Map<String, String>): Single<ChunkedUploadResponse> =
+            amigoApi.chunkedUpload(url,
+                    body,
+                    headers)
+
 
     fun chunkedUploadComplete(url: String,
                               upload_id: String,
