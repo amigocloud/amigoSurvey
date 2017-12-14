@@ -67,6 +67,20 @@ class FormActivity : AppCompatActivity() {
     val MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 7
     val MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 8
 
+    private val INITIAL_PERMS = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+    private val CAMERA_PERMS = arrayOf(Manifest.permission.CAMERA)
+    private val LOCATION_PERMS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    private val INITIAL_REQUEST = 1337
+    private val CAMERA_REQUEST = INITIAL_REQUEST + 1
+    private val FINE_LOCATION_REQUEST = INITIAL_REQUEST + 2
+    private val COARSE_LOCATION_REQUEST = INITIAL_REQUEST + 3
+
     val REQUEST_IMAGE_CAPTURE = 1
     val REQUEST_VIDEO_CAPTURE = 2
     val REQUEST_PHOTO_GALLERY = 100
@@ -146,8 +160,9 @@ class FormActivity : AppCompatActivity() {
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
 
-        checkPermissions()
+        requestPermissions(INITIAL_PERMS, INITIAL_REQUEST);
     }
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -170,6 +185,7 @@ class FormActivity : AppCompatActivity() {
                     if(progress.bytesSent.toLong() == progress.bytesTotal) {
                         progress.record?.let { viewModel.deletePhotoRecord(it) }
                         Log.w("---5---", "Delete record: " + progress.record.toString())
+                        this.finish()
                     }
                 }, { error ->
                     Log.e("---3---", error.toString(), error)
@@ -342,54 +358,19 @@ class FormActivity : AppCompatActivity() {
         integrator.initiateScan()
     }
 
-    fun checkPermissions() {
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.READ_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.READ_EXTERNAL_STORAGE)) {
-            } else {
-                ActivityCompat.requestPermissions(this,
-                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-                        MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE)
-            }
-        }
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED) {
-
-            // Should we show an explanation?
-            if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-            } else {
-                ActivityCompat.requestPermissions(this,
-                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                        MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE)
-            }
-        }
+    private fun hasPermission(perm: String): Boolean {
+        return PackageManager.PERMISSION_GRANTED == checkSelfPermission(perm)
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int,
-                                            permissions: Array<String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+
         when (requestCode) {
-            MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE -> {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                }
-                return
-            }
-
-            MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE -> {
-                if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                }
-                return
-            }
-
-        }// other 'case' lines to check for other
-        // permissions this app might request
+            CAMERA_REQUEST -> if (hasPermission(Manifest.permission.CAMERA)) {}
+            FINE_LOCATION_REQUEST -> if (hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {}
+            COARSE_LOCATION_REQUEST -> if (hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)) {}
+        }
     }
+
 }
 
 

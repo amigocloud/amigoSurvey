@@ -102,6 +102,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     val related_tables = ObservableField<List<RelatedTableModel>>()
     val schema = ObservableField<List<Any>>()
     var recordJSON: String? = null
+    var lastLocation: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
 
     val events: LiveData<FormViewState> = LiveDataReactiveStreams.fromPublisher(processor
             .filter { (pId, dId) ->
@@ -164,9 +165,17 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
             Flowable.timer(3, TimeUnit.SECONDS)
                     .repeat()
                     .flatMapSingle {
-                        locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
+                        lastLocation = locationManager.requestLocation(LocationManager.GPS_PROVIDER,
                                 LocationTime(3, TimeUnit.SECONDS))
-                                .onErrorReturn { Location("") }
+                                .onErrorReturn {
+                                    lastLocation = locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
+                                            LocationTime(3, TimeUnit.SECONDS))
+                                            .onErrorReturn {
+                                                lastLocation.blockingGet()
+                                            }
+                                    lastLocation.blockingGet()
+                                }
+                        lastLocation
                     })
 
     fun onFetchForm(projectId: Long, datasetId: Long) {
