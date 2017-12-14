@@ -1,16 +1,13 @@
 package com.amigocloud.amigosurvey.repository
 
-import android.support.v4.media.VolumeProviderCompat
 import com.amigocloud.amigosurvey.form.ChunkedUploadResponse
 import com.amigocloud.amigosurvey.models.*
 import com.squareup.moshi.Moshi
 import io.reactivex.Completable
-import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.rxkotlin.toMaybe
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
-import org.json.JSONObject
 import retrofit2.http.*
 import javax.inject.Inject
 import javax.inject.Singleton

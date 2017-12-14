@@ -1,7 +1,6 @@
 package com.amigocloud.amigosurvey.form
 
 import android.arch.lifecycle.ViewModel
-import android.util.Log
 import com.amigocloud.amigosurvey.models.RelatedRecord
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.Repository
@@ -141,20 +140,21 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             file.forEachBlock(blockSize = chunkSize, action = { buffer, count ->
                         bytesRead += count
                         val isLast = (bytesRead >= totalBytes)
-                        chunkList.add(FileChunk(fname, url, buffer, bytesRead-count, count, totalBytes, record, isLast))
+                        chunkList.add(FileChunk(fname, url, buffer.clone(), bytesRead-count, count, totalBytes, record, isLast))
                     })
             emitter.onSuccess(chunkList)
         }
     }
 
     fun postFileChunkFirst(chunk: FileChunk): Single<ChunkedUploadResponse> {
-        val body = RequestBody.create(MediaType.parse("image/*"), chunk.data, 0, chunk.chunkSize)
+        val body = RequestBody.create(MediaType.parse("application/octet-stream"), chunk.data, 0, chunk.chunkSize)
 
         val bodyMap = mutableMapOf(
                 Pair("amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.amigo_id!!)),
                 Pair("source_amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.source_amigo_id!!)),
-                Pair("filename", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.fileName)),
-                Pair("datafile\"; filename=\"${chunk.fileName}", body))
+                Pair("filename", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.fileName))
+                ,Pair("datafile\"; filename=\"${chunk.fileName}", body)
+        )
 
         val headers = mapOf(
                 Pair("Content-Range", "bytes ${chunk.firstByte}-${chunk.firstByte+chunk.chunkSize-1}/${chunk.fileSize}"))
@@ -165,14 +165,15 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
     }
 
     fun postFileChunk(upload_id: String, chunk: FileChunk): Single<ChunkedUploadResponse> {
-        val body = RequestBody.create(MediaType.parse("image/*"), chunk.data, 0, chunk.chunkSize)
+        val body = RequestBody.create(MediaType.parse("application/octet-stream"), chunk.data, 0, chunk.chunkSize)
 
         val bodyMap = mutableMapOf(
                 Pair("amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.amigo_id!!)),
                 Pair("source_amigo_id", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.record?.source_amigo_id!!)),
                 Pair("filename", RequestBody.create(MediaType.parse("multipart/form-data"), chunk.fileName)),
-                Pair("upload_id", RequestBody.create(MediaType.parse("multipart/form-data"), upload_id)),
-                Pair("datafile\"; filename=\"${chunk.fileName}", body))
+                Pair("upload_id", RequestBody.create(MediaType.parse("multipart/form-data"), upload_id))
+                ,Pair("datafile\"; filename=\"${chunk.fileName}", body)
+        )
 
         val headers = mapOf(
                 Pair("Content-Range", "bytes ${chunk.firstByte}-${chunk.firstByte+chunk.chunkSize-1}/${chunk.fileSize}"))
@@ -196,46 +197,6 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
             }
         }
         return Single.just(ChunkedUploadResponse())
-    }
-
-    fun createBodyForFileUpload(upload_id: String, md5: String, chunk: FileChunk): String {
-        val body = StringBuffer()
-        chunk.record?.let { record ->
-            val boundaryPrefix = "--${chunk.boundary}\r\n"
-            body.append(getContentDisposition(boundaryPrefix, "amigo_id", record.amigo_id))
-            body.append(getContentDisposition(boundaryPrefix, "source_amigo_id", record.source_amigo_id))
-            body.append(getContentDisposition(boundaryPrefix, "upload_id", upload_id))
-            if(md5.isNotEmpty()) {
-                body.append(getContentDisposition(boundaryPrefix, "md5", md5))
-                body.append(getContentDisposition(boundaryPrefix, "filename", record.filename))
-            }
-            val mimeType = "image/*"
-            body.append(boundaryPrefix)
-            body.append("Content-Disposition: form-data; name=\"datafile\"; filename=\"${chunk.fileName}\"\r\n")
-            body.append("Content-Type: $mimeType\r\n\r\n")
-
-//            body.append(chunk.data.)
-
-            chunk.data?.let {
-                it.asSequence().forEachIndexed{ index, byte ->
-                    if (index < chunk.chunkSize) {
-                        Log.e("--- chunk ---", "'$byte', '${byte.toInt()}', '${byte.toChar()}'")
-                        body.append(byte.toChar())
-                    }
-                }
-            }
-            body.append("\r\n")
-            body.append("--${chunk.boundary}--")
-        }
-        return body.toString()
-    }
-
-    fun getContentDisposition(boundaryPrefix: String, key:String, value:String): String {
-        var body = StringBuffer()
-        body.append(boundaryPrefix)
-        body.append("Content-Disposition: form-data; name=\"$key\"\r\n\r\n")
-        body.append("$value\r\n")
-        return body.toString()
     }
 
 }
