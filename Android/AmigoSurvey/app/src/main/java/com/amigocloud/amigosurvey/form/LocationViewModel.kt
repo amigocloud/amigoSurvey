@@ -1,9 +1,9 @@
 package com.amigocloud.amigosurvey.form
 
-import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.ViewModel
 import android.location.Location
 import android.location.LocationManager
+import android.util.Log
 import io.reactivex.Flowable
 import io.reactivex.Single
 import io.reactivex.flowables.ConnectableFlowable
@@ -18,23 +18,26 @@ import javax.inject.Singleton
 @Singleton
 class LocationViewModel @Inject constructor(private val locationManager: RxLocationManager) : ViewModel() {
 
-    var lastLocation: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
+    var lastLocationSingle: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
+    var lastLocation: Location = Location(LocationManager.PASSIVE_PROVIDER)
 
     val location: ConnectableFlowable<Location>? =
             Flowable.timer(3, TimeUnit.SECONDS)
                     .repeat()
                     .flatMapSingle {
-                        lastLocation = locationManager.requestLocation(LocationManager.GPS_PROVIDER,
+                        lastLocationSingle = locationManager.requestLocation(LocationManager.GPS_PROVIDER,
                                 LocationTime(3, TimeUnit.SECONDS))
                                 .onErrorReturn {
-                                    lastLocation = locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
+                                    lastLocationSingle = locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
                                             LocationTime(3, TimeUnit.SECONDS))
                                             .onErrorReturn {
-                                                lastLocation.blockingGet()
+                                                lastLocationSingle.blockingGet()
                                             }
-                                    lastLocation.blockingGet()
+                                    lastLocation = lastLocationSingle.blockingGet()
+                                    lastLocation
                                 }
-                        lastLocation
+                        lastLocation = lastLocationSingle.blockingGet()
+                        lastLocationSingle
                     }.publish()
 
 }

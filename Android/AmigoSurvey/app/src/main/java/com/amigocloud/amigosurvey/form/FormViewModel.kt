@@ -26,7 +26,6 @@ import android.arch.lifecycle.LiveDataReactiveStreams
 import android.arch.lifecycle.ViewModel
 import android.databinding.ObservableField
 import android.location.Location
-import android.location.LocationManager
 import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.SurveyConfig
@@ -99,7 +98,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     var recordJSON: String? = null
 
 
-//    var lastLocation: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
+//    var lastLocationSingle: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
 
     val events: LiveData<FormViewState> = LiveDataReactiveStreams.fromPublisher(processor
             .filter { (pId, dId) ->
@@ -152,7 +151,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                     relatedTablesJson = getRelatedTablesJSON(),
                                     projectJson = rest.getProjectJSON(project.get()),
                                     formDescription = rest.getJSON(create_block_json),
-                                    gpsInfo = getGPSInfoJSON(locationViewModel.lastLocation.blockingGet())
+                                    gpsInfo = getGPSInfoJSON(locationViewModel.lastLocationSingle.blockingGet())
                             )
                         }
                         .onErrorReturn { FormViewState(error = it) }

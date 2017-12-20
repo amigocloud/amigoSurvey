@@ -36,6 +36,7 @@ import javax.inject.Inject
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
+import android.location.Location
 import android.os.Environment
 import android.provider.MediaStore
 import android.support.v4.content.FileProvider
@@ -137,32 +138,35 @@ class FormActivity : AppCompatActivity() {
             }
         })
 
+        requestPermissions(INITIAL_PERMS, INITIAL_REQUEST)
+
         viewModel.locationViewModel.location?.connect()?.let { disposables.add(it) }
 
         viewModel.locationViewModel.location?.observeOn(AndroidSchedulers.mainThread())?.subscribe {
-            location ->
-            Log.e("-location-", location.toString())
-            if (location.hasAccuracy()) {
-                bridge.lastLocation = location
-                haveLocation = true
-                when {
-                    location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
-                    location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
-                    location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
-                }
-            } else {
-                gps_info_button.setBackgroundResource(R.drawable.gps_off)
-                haveLocation = false
-            }
+            location -> updateGPSLocation(location)
         }
+        updateGPSLocation(viewModel.locationViewModel.lastLocation)
 
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
-
-        requestPermissions(INITIAL_PERMS, INITIAL_REQUEST)
-
     }
 
+    fun updateGPSLocation(location: Location) {
+        Log.e("-updateGPSLocation-", location.toString())
+        if (location.hasAccuracy()) {
+            bridge.lastLocation = location
+            haveLocation = true
+            when {
+                location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
+                location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
+                location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
+            }
+        } else {
+            gps_info_button.setBackgroundResource(R.drawable.gps_off)
+            haveLocation = false
+        }
+
+    }
 
     override fun onDestroy() {
         super.onDestroy()
