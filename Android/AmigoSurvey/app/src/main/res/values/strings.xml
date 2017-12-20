@@ -18,6 +18,8 @@
     <string name="use_existing_file">Use Existing File</string>
     <string name="barcode_scanned">Barcode scanned</string>
     <string name="use_this_value">Would you like to use this value in the record?\n\n</string>
+    <string name="no_location_title">No GPS Location</string>
+    <string name="no_location_message">Record cannot be saved without GPS location</string>
 
     <string name="ui_ok">Ok</string>
     <string name="ui_no">No</string>

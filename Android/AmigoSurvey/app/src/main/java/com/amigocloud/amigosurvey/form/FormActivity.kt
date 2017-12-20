@@ -36,18 +36,14 @@ import javax.inject.Inject
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
-import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.support.v4.app.ActivityCompat
-import android.support.v4.content.ContextCompat
 import android.support.v4.content.FileProvider
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.android.IntentIntegrator
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
@@ -63,9 +59,6 @@ class FormActivity : AppCompatActivity() {
         val BASE_URL = "https://www.amigocloud.com"
         internal val FORM_FRAGMENT_TAG = "FORM_FRAGMENT_TAG"
     }
-
-    val MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 7
-    val MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 8
 
     private val INITIAL_PERMS = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -88,6 +81,7 @@ class FormActivity : AppCompatActivity() {
     var user_id: Long = 0
     var project_id: Long = 0
     var dataset_id: Long = 0
+    var haveLocation: Boolean = false
 
     private lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
@@ -97,6 +91,7 @@ class FormActivity : AppCompatActivity() {
     private lateinit var changesetViewModel: ChangesetViewModel
     private lateinit var bridge: AmigoBridge
     private var ready: Boolean = false
+    private var progressDialog: ProgressFragment? = null
 
     private var disposables = CompositeDisposable()
 
@@ -142,25 +137,30 @@ class FormActivity : AppCompatActivity() {
             }
         })
 
-        viewModel.location.observe(this, Observer {
-            it?.let { location ->
-                Log.e("-location-", location.toString())
-                if (location.hasAccuracy()) {
-                    bridge.lastLocation = location
-                    when {
-                        location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
-                        location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
-                        location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
-                    }
-                } else {
-                    gps_info_button.setBackgroundResource(R.drawable.gps_off)
+        viewModel.locationViewModel.location?.connect()?.let { disposables.add(it) }
+
+        viewModel.locationViewModel.location?.observeOn(AndroidSchedulers.mainThread())?.subscribe {
+            location ->
+            Log.e("-location-", location.toString())
+            if (location.hasAccuracy()) {
+                bridge.lastLocation = location
+                haveLocation = true
+                when {
+                    location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
+                    location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
+                    location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
                 }
+            } else {
+                gps_info_button.setBackgroundResource(R.drawable.gps_off)
+                haveLocation = false
             }
-        })
+        }
+
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
 
-        requestPermissions(INITIAL_PERMS, INITIAL_REQUEST);
+        requestPermissions(INITIAL_PERMS, INITIAL_REQUEST)
+
     }
 
 
@@ -171,8 +171,18 @@ class FormActivity : AppCompatActivity() {
 
     fun onSave() {
         Log.e("---", "save")
-        bridge.submit()
-        uploadPhotos()
+        if(haveLocation) {
+            showProgressDialog()
+            bridge.submit()
+            uploadPhotos()
+        } else {
+            val ad = AlertDialog.Builder(this)
+            ad.setTitle(getString(R.string.no_location_title))
+            ad.setMessage(getString(R.string.no_location_message))
+            ad.setNeutralButton(getString(R.string.ui_ok), null)
+            ad.show()
+
+        }
     }
 
     fun uploadPhotos() {
@@ -180,16 +190,31 @@ class FormActivity : AppCompatActivity() {
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ progress ->
-                    Log.w("---4---", progress.toString())
-                    // If file uploaded successfully
-                    if(progress.bytesSent.toLong() == progress.bytesTotal) {
-                        progress.record?.let { viewModel.deletePhotoRecord(it) }
-                        Log.w("---5---", "Delete record: " + progress.record.toString())
-                        this.finish()
+                    when (progress) {
+                        is FileUploadProgress -> {
+                            val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
+                            val msg = "File ${progress.fileIndex+1} of ${progress.filesTotal}: ${progress.message}"
+                            progressDialog?.updateProgress(pr.toLong(), msg)
+                            // If file uploaded successfully
+                        }
+                        is FileUploadComplete -> {
+                            progress.record?.let { viewModel.deletePhotoRecord(it) }
+                            if(progress.fileIndex == progress.filesTotal-1) {
+                                progressDialog?.dismiss()
+                                this.finish()
+                            }
+                        }
                     }
                 }, { error ->
-                    Log.e("---3---", error.toString(), error)
+                    Log.e("--- // ---", error.toString(), error)
+                    progressDialog?.dismiss()
+                    this.finish()
                 }))
+    }
+
+    fun showProgressDialog() {
+        progressDialog = ProgressFragment.newInstance(1)
+        progressDialog?.show(fragmentManager, "progressDialog")
     }
 
     fun onGPSInfo() {
@@ -226,7 +251,6 @@ class FormActivity : AppCompatActivity() {
         bridge.formType = "create_block"
         webView.let { webView ->
             webView.addJavascriptInterface(bridge, "AmigoPlatform")
-//            webView.loadUrl("window.onerror = function (message, url, lineNumber) {AmigoPlatform.onException(message + ' URL: ' + url + ' Line:' + lineNumber);}")
             val html = state.form?.base_form?.replaceFirst("<base href=\".*\".*>".toRegex(), "")
             val url = "file://" + state.webFormDir + bridge.formType
             webView.loadDataWithBaseURL(url, html, "text/html", "UTF-8", "")

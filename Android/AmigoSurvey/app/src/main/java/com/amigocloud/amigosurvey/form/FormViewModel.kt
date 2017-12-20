@@ -27,7 +27,6 @@ import android.arch.lifecycle.ViewModel
 import android.databinding.ObservableField
 import android.location.Location
 import android.location.LocationManager
-import android.util.Log
 import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.SurveyConfig
@@ -35,19 +34,14 @@ import com.amigocloud.amigosurvey.util.unzipFile
 import com.amigocloud.amigosurvey.util.writeToDisk
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
-import io.reactivex.Flowable
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.functions.BiFunction
 import io.reactivex.internal.operators.single.SingleFromCallable
 import io.reactivex.processors.BehaviorProcessor
-import io.reactivex.schedulers.Schedulers
-import ru.solodovnikov.rx2locationmanager.LocationTime
 import ru.solodovnikov.rx2locationmanager.RxLocationManager
 import java.io.File
 import java.util.*
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -89,7 +83,8 @@ data class GPSInfoJson(
 class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                         private val config: SurveyConfig,
                                         private val locationManager: RxLocationManager,
-                                        private val fileUploader: FileUploader) : ViewModel() {
+                                        private val fileUploader: FileUploader,
+                                        val locationViewModel: LocationViewModel) : ViewModel() {
 
     private val supportFname = "support_files.zip"
 
@@ -102,7 +97,9 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     val related_tables = ObservableField<List<RelatedTableModel>>()
     val schema = ObservableField<List<Any>>()
     var recordJSON: String? = null
-    var lastLocation: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
+
+
+//    var lastLocation: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
 
     val events: LiveData<FormViewState> = LiveDataReactiveStreams.fromPublisher(processor
             .filter { (pId, dId) ->
@@ -155,28 +152,11 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                     relatedTablesJson = getRelatedTablesJSON(),
                                     projectJson = rest.getProjectJSON(project.get()),
                                     formDescription = rest.getJSON(create_block_json),
-                                    gpsInfo = getGPSInfoJSON(location.value)
+                                    gpsInfo = getGPSInfoJSON(locationViewModel.lastLocation.blockingGet())
                             )
                         }
                         .onErrorReturn { FormViewState(error = it) }
             })
-
-    val location: LiveData<Location> = LiveDataReactiveStreams.fromPublisher(
-            Flowable.timer(3, TimeUnit.SECONDS)
-                    .repeat()
-                    .flatMapSingle {
-                        lastLocation = locationManager.requestLocation(LocationManager.GPS_PROVIDER,
-                                LocationTime(3, TimeUnit.SECONDS))
-                                .onErrorReturn {
-                                    lastLocation = locationManager.requestLocation(LocationManager.NETWORK_PROVIDER,
-                                            LocationTime(3, TimeUnit.SECONDS))
-                                            .onErrorReturn {
-                                                lastLocation.blockingGet()
-                                            }
-                                    lastLocation.blockingGet()
-                                }
-                        lastLocation
-                    })
 
     fun onFetchForm(projectId: Long, datasetId: Long) {
         processor.onNext(projectId.to(datasetId))
@@ -270,7 +250,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                 .flatMap { Observable.just(it.name) }
     }
 
-    fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileUploadProgress>
+    fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileProgressEvent>
             = fileUploader.uploadAllPhotos(projectId, datasetId)
 
     fun deletePhotoRecord(record: RelatedRecord)
@@ -280,13 +260,14 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     class Factory @Inject constructor(private val rest: AmigoRest,
                                       private val config: SurveyConfig,
                                       private val locationManager: RxLocationManager,
-                                      private val fileUploader: FileUploader) : ViewModelFactory<FormViewModel>() {
+                                      private val fileUploader: FileUploader,
+                                      private val locationViewModel: LocationViewModel) : ViewModelFactory<FormViewModel>() {
 
         override val modelClass = FormViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if(modelClass.isAssignableFrom(this.modelClass)) {
-                return FormViewModel(rest, config, locationManager, fileUploader) as T
+                return FormViewModel(rest, config, locationManager, fileUploader, locationViewModel) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }

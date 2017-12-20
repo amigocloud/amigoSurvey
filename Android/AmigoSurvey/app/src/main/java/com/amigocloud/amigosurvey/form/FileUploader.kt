@@ -18,6 +18,8 @@ data class ChunkedUploadResponse (var upload_id:String = "",
                                   var offset: Int = 0,
                                   var expires: String = "")
 
+sealed class FileProgressEvent
+
 data class FileUploadProgress (
     var bytesSent: Int = 0,
     var bytesTotal: Long = 0,
@@ -26,7 +28,14 @@ data class FileUploadProgress (
     var fileIndex: Int = 0,
     var filesTotal: Int = 0,
     var record: RelatedRecord? = null
-)
+): FileProgressEvent()
+
+data class FileUploadComplete (
+        var message: String = "",
+        var fileIndex: Int = 0,
+        var filesTotal: Int = 0,
+        var record: RelatedRecord? = null
+): FileProgressEvent()
 
 data class FileChunk (
         var fileName: String = "",
@@ -46,14 +55,14 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                                        private val repository: Repository,
                                        private val config: SurveyConfig): ViewModel() {
 
-    fun uploadAllPhotos(projectId: Long, datasetId: Long): Observable<FileUploadProgress> {
+    fun uploadAllPhotos(projectId: Long, datasetId: Long): Observable<FileProgressEvent> {
         var index = 0
         val totalPhotos = repository.relatedRecordDao().all.size
-        return getAllPhotos()
-                .flatMap {
-                    uploadPhoto(index++, it, projectId, datasetId, totalPhotos)
-                }
-
+        return if(totalPhotos == 0) {
+            Observable.just(FileUploadComplete("No files to upload", -1, 0, null))
+        } else {
+            getAllPhotos().concatMap { uploadPhoto(index++, it, projectId, datasetId, totalPhotos)}
+        }
     }
 
     fun deletePhoto(record: RelatedRecord) {
@@ -68,14 +77,10 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
         }
     }
 
-    fun uploadPhoto(index: Int, record: RelatedRecord, projectId: Long, datasetId: Long, totalPhotos: Int): Observable<FileUploadProgress> {
+    fun uploadPhoto(index: Int, record: RelatedRecord, projectId: Long, datasetId: Long, totalPhotos: Int): Observable<FileProgressEvent> {
         return rest.fetchRelatedTables(projectId, datasetId)
-                .flatMapObservable {
-                    Observable.fromIterable(it.results)
-                }
-                .filter {
-                    it.id == record.relatedTableId.toLong()
-                }
+                .flatMapObservable { Observable.fromIterable(it.results) }
+                .filter { it.id == record.relatedTableId.toLong() }
                 .flatMap {
                     chunkedFileUpload(it.chunked_upload,
                             it.chunked_upload_complete,
@@ -93,7 +98,7 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                           record: RelatedRecord,
                           chunkSize: Int,
                           fileIndex: Int,
-                          filesTotal: Int) : Observable<FileUploadProgress> {
+                          filesTotal: Int) : Observable<FileProgressEvent> {
         val md5 = "90affbd9a1954ec9ff029b7ad7183a16" // Bogus value
         return getFileChunks(url, path, record.filename, chunkSize, record)
                 .filter { it.isNotEmpty() }
@@ -121,13 +126,20 @@ class FileUploader @Inject constructor(private val rest: AmigoRest,
                     }
                 }
                 .map { fileChunk ->
-                    FileUploadProgress(fileChunk.firstByte + fileChunk.chunkSize,
-                            fileChunk.fileSize,
-                            record.filename,
-                            200,
-                            fileIndex,
-                            filesTotal,
-                            fileChunk.record)
+                    if ( (fileChunk.firstByte + fileChunk.chunkSize).toLong() == fileChunk.fileSize) {
+                        FileUploadComplete("fileIndex:${fileIndex}, filesTotal:${filesTotal}, uploaded bytes:${fileChunk.firstByte + fileChunk.chunkSize}, fileSize:${fileChunk.fileSize}",
+                                fileIndex,
+                                filesTotal,
+                                fileChunk.record)
+                    } else {
+                        FileUploadProgress(fileChunk.firstByte + fileChunk.chunkSize,
+                                fileChunk.fileSize,
+                                record.filename,
+                                200,
+                                fileIndex,
+                                filesTotal,
+                                fileChunk.record)
+                    }
                 }
     }
 

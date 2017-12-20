@@ -42,8 +42,10 @@ class AmigoBridge(private val formActivity: FormActivity) {
     }
 
     fun setGeometryPosition() {
-        refreshGeometry(getLastLocationWKT())
-        geometrySet = true
+        if (formActivity.haveLocation) {
+            refreshGeometry(getLastLocationWKT())
+            geometrySet = true
+        }
     }
 
     @JavascriptInterface
