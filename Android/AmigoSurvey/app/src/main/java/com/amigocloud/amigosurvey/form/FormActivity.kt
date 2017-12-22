@@ -40,16 +40,14 @@ import android.location.Location
 import android.net.ConnectivityManager
 import android.os.Environment
 import android.provider.MediaStore
-import android.support.annotation.MainThread
 import android.support.v4.content.FileProvider
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.amigocloud.amigosurvey.util.isConnected
 import com.android.IntentIntegrator
+import com.squareup.moshi.Moshi
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.schedulers.Schedulers
-import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -57,46 +55,42 @@ import java.util.*
 
 class FormActivity : AppCompatActivity() {
     companion object {
-        val INTENT_USER_ID = "user_id"
-        val INTENT_PROJECT_ID = "project_id"
-        val INTENT_DATASET_ID = "dataset_id"
-        val BASE_URL = "https://www.amigocloud.com"
-        internal val FORM_FRAGMENT_TAG = "FORM_FRAGMENT_TAG"
+        const val TAG = "FormActivity"
+        const val INTENT_USER_ID = "user_id"
+        const val INTENT_PROJECT_ID = "project_id"
+        const val INTENT_DATASET_ID = "dataset_id"
+
+        private val INITIAL_PERMS = arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+        private const val INITIAL_REQUEST = 1337
+        private const val CAMERA_REQUEST = INITIAL_REQUEST + 1
+        private const val FINE_LOCATION_REQUEST = INITIAL_REQUEST + 2
+        private const val COARSE_LOCATION_REQUEST = INITIAL_REQUEST + 3
+
+        const val REQUEST_IMAGE_CAPTURE = 1
+        const val REQUEST_VIDEO_CAPTURE = 2
+        const val REQUEST_PHOTO_GALLERY = 100
     }
-
-    val TAG = "FormActivity"
-
-    private val INITIAL_PERMS = arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE)
-
-    private val CAMERA_PERMS = arrayOf(Manifest.permission.CAMERA)
-    private val LOCATION_PERMS = arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-
-    private val INITIAL_REQUEST = 1337
-    private val CAMERA_REQUEST = INITIAL_REQUEST + 1
-    private val FINE_LOCATION_REQUEST = INITIAL_REQUEST + 2
-    private val COARSE_LOCATION_REQUEST = INITIAL_REQUEST + 3
-
-    val REQUEST_IMAGE_CAPTURE = 1
-    val REQUEST_VIDEO_CAPTURE = 2
-    val REQUEST_PHOTO_GALLERY = 100
 
     var user_id: Long = 0
     var project_id: Long = 0
     var dataset_id: Long = 0
     var haveLocation: Boolean = false
 
-    private lateinit var webView: WebView
+    var ready: Boolean = false
+    lateinit var webView: WebView
     private lateinit var progressBar: ProgressBar
     private lateinit var viewModel: FormViewModel
     private lateinit var photoViewModel: PhotoViewModel
     private lateinit var fileUploader: FileUploader
-    private lateinit var changesetViewModel: ChangesetViewModel
+    private lateinit var recordsViewModel: RecordsViewModel
+    private lateinit var locationViewModel: LocationViewModel
     private lateinit var bridge: AmigoBridge
-    private var ready: Boolean = false
+
     private var progressDialog: ProgressFragment? = null
 
     private var disposables = CompositeDisposable()
@@ -107,9 +101,11 @@ class FormActivity : AppCompatActivity() {
 
     @Inject lateinit var viewModelFactory: FormViewModel.Factory
     @Inject lateinit var photoModelFactory: PhotoViewModel.Factory
-    @Inject lateinit var changesetModelFactory: ChangesetViewModel.Factory
-
+    @Inject lateinit var recordsModelFactory: RecordsViewModel.Factory
+    @Inject lateinit var locationViewModelFactory: LocationViewModel.Factory
+    @Inject lateinit var fileUploaderFactory: FileUploader.Factory
     @Inject lateinit var connectivityManager: ConnectivityManager
+    @Inject lateinit var moshi: Moshi
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,9 +114,11 @@ class FormActivity : AppCompatActivity() {
         Toothpick.openScopes(ApplicationScope::class.java, this).let {
             Toothpick.inject(this, it)
         }
+        fileUploader = fileUploaderFactory.get(this)
         viewModel = viewModelFactory.get(this)
         photoViewModel = photoModelFactory.get(this)
-        changesetViewModel = changesetModelFactory.get(this)
+        recordsViewModel = recordsModelFactory.get(this)
+        locationViewModel = locationViewModelFactory.get(this)
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_form)
         binding.viewModel = viewModel
@@ -135,7 +133,8 @@ class FormActivity : AppCompatActivity() {
         webView.settings?.javaScriptEnabled = true
         webView.settings?.allowFileAccess = true
 
-        bridge = AmigoBridge(this)
+        bridge = AmigoBridge(this, moshi)
+
         viewModel.events.observe(this, Observer {
             it?.let { state ->
                 bridge.formViewState = state
@@ -145,14 +144,42 @@ class FormActivity : AppCompatActivity() {
             }
         })
 
+        recordsViewModel.events.observe(this, Observer { progress ->
+            progress?.let {
+                Log.e(TAG, "RecordsUploadProgress event ------------- $progress")
+                viewModel.deleteSavedRecord(progress.record)
+                val pr = (progress.recordIndex.toFloat() / progress.recordsTotal.toFloat()) * 100.0
+                progressDialog?.updateProgress(pr.toLong(), "Record(s)")
+            }
+        })
+
+        fileUploader.events.observe(this, Observer { progress ->
+            Log.e("--- // ---", "fileUploader $progress")
+            when (progress) {
+                is FileUploadProgressEvent -> {
+                    val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
+                    val msg = "File ${progress.fileIndex + 1} of ${progress.filesTotal}: ${progress.message}"
+                    progressDialog?.updateProgress(pr.toLong(), msg)
+                    // If file uploaded successfully
+                }
+                is FileUploadCompleteEvent -> {
+                    progress.record?.let { fileUploader.deletePhoto(it) }
+                    if (progress.fileIndex == progress.filesTotal - 1) {
+                        progressDialog?.dismiss()
+                        this.finish()
+                    }
+                }
+            }
+        })
+
         requestPermissions(INITIAL_PERMS, INITIAL_REQUEST)
 
-        viewModel.locationViewModel.location?.connect()?.let { disposables.add(it) }
+        locationViewModel.location.connect().let { disposables.add(it) }
 
-        viewModel.locationViewModel.location?.observeOn(AndroidSchedulers.mainThread())?.subscribe {
-            location -> updateGPSLocation(location)
-        }
-        updateGPSLocation(viewModel.locationViewModel.lastLocation)
+        locationViewModel.location
+                .startWith(locationViewModel.lastLocation)
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { location -> updateGPSLocation(location) }
 
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
@@ -161,9 +188,9 @@ class FormActivity : AppCompatActivity() {
         val pn = viewModel.getSavedPhotosNum()
         if(rn > 0 ) {
             if(pn > 0 ) {
-                records_info.text = "Records:$rn Photos:$pn"
+                binding.recordsInfo.text = "Records:$rn Photos:$pn"
             } else {
-                records_info.text = "Records:$rn"
+                binding.recordsInfo.text = "Records:$rn"
             }
         }
     }
@@ -174,12 +201,12 @@ class FormActivity : AppCompatActivity() {
             bridge.lastLocation = location
             haveLocation = true
             when {
-                location.accuracy <= 10 -> gps_info_button.setBackgroundResource(R.drawable.gps_green)
-                location.accuracy <= 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_yellow)
-                location.accuracy > 65 -> gps_info_button.setBackgroundResource(R.drawable.gps_red)
+                location.accuracy <= 10 -> binding.gpsInfoButton.setBackgroundResource(R.drawable.gps_green)
+                location.accuracy <= 65 -> binding.gpsInfoButton.setBackgroundResource(R.drawable.gps_yellow)
+                location.accuracy > 65 -> binding.gpsInfoButton.setBackgroundResource(R.drawable.gps_red)
             }
         } else {
-            gps_info_button.setBackgroundResource(R.drawable.gps_off)
+            binding.gpsInfoButton.setBackgroundResource(R.drawable.gps_off)
             haveLocation = false
         }
 
@@ -205,30 +232,7 @@ class FormActivity : AppCompatActivity() {
     }
 
     fun uploadPhotos() {
-        disposables.add(viewModel.uploadPhotos(project_id, dataset_id)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({ progress ->
-                    when (progress) {
-                        is FileUploadProgress -> {
-                            val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
-                            val msg = "File ${progress.fileIndex+1} of ${progress.filesTotal}: ${progress.message}"
-                            progressDialog?.updateProgress(pr.toLong(), msg)
-                            // If file uploaded successfully
-                        }
-                        is FileUploadComplete -> {
-                            progress.record?.let { viewModel.deletePhotoRecord(it) }
-                            if(progress.fileIndex == progress.filesTotal-1) {
-                                progressDialog?.dismiss()
-                                this.finish()
-                            }
-                        }
-                    }
-                }, { error ->
-                    Log.e("--- // ---", error.toString(), error)
-                    progressDialog?.dismiss()
-                    this.finish()
-                }))
+        fileUploader.uploadAllPhotos(project_id, dataset_id)
     }
 
     fun showProgressDialog() {
@@ -250,30 +254,15 @@ class FormActivity : AppCompatActivity() {
 
     fun submitNewRecord(rec: String) {
         viewModel.saveRecord(rec)
+
         if(connectivityManager.isConnected()) {
             showProgressDialog()
-            viewModel.submitSavedRecords(changesetViewModel, viewModel.project.get(), viewModel.dataset.get())
-                    .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe({ it ->
-                        viewModel.deleteSavedRecord(it.record)
-                        val pr = (it.recordIndex.toFloat() / it.recordsTotal.toFloat()) * 100.0
-                        progressDialog?.updateProgress(pr.toLong(), "Record(s)")
-                    },
-                    { error -> Log.e(TAG, error.toString()) })
-
+            recordsViewModel.submitAllRecords(viewModel.project.get(), viewModel.dataset.get())
             uploadPhotos()
         } else {
             this.finish()
         }
     }
-
-    fun isReady(): Boolean {
-        return ready
-    }
-
-    fun getWebView() = this.webView
-
-    fun getViewModel() = this.viewModel
 
     fun _loadForm(state: FormViewState) {
         bridge.formType = "create_block"

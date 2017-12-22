@@ -32,10 +32,10 @@ import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.Repository
 import com.amigocloud.amigosurvey.repository.SurveyConfig
-import com.amigocloud.amigosurvey.util.unzipFile
-import com.amigocloud.amigosurvey.util.writeToDisk
+import com.amigocloud.amigosurvey.util.*
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
+import com.squareup.moshi.Moshi
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.functions.BiFunction
@@ -82,11 +82,8 @@ data class GPSInfoJson(
 
 @Singleton
 class FormViewModel @Inject constructor(private val rest: AmigoRest,
+                                        private val moshi: Moshi,
                                         private val config: SurveyConfig,
-                                        private val locationManager: RxLocationManager,
-                                        private val fileUploader: FileUploader,
-                                        val locationViewModel: LocationViewModel,
-                                        private val connectivityManager: ConnectivityManager,
                                         private val repository: Repository) : ViewModel() {
     val TAG = "FormViewModel"
 
@@ -143,19 +140,19 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                             var create_block_json: Any = "{}"
                             it.create_block_json?.let { create_block_json = it }
                             if (recordJSON == null) {
-                                recordJSON = getNewRecordJSON()
+                                recordJSON = schema.get().getNewRecordJson(moshi)
                             }
                             FormViewState(
-                                    userJson = getUserJSON(user.get()),
+                                    userJson = user.get().getJson(moshi),
                                     project = project.get(),
                                     dataset = dataset.get(),
                                     form = it,
                                     webFormDir = config.webFormDir,
-                                    schemaJson = rest.getListJSON(schema.get()),
+                                    schemaJson = schema.get().getJson(moshi),
                                     recordJson = recordJSON!!,
-                                    relatedTablesJson = getRelatedTablesJSON(),
-                                    projectJson = rest.getProjectJSON(project.get()),
-                                    formDescription = rest.getJSON(create_block_json)
+                                    relatedTablesJson = related_tables.get().getRelatedTableJson(moshi),
+                                    projectJson = project.get().getJson(moshi),
+                                    formDescription = create_block_json.getJson(moshi)
                             )
                         }
                         .onErrorReturn { FormViewState(error = it) }
@@ -163,42 +160,6 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
 
     fun onFetchForm(projectId: Long, datasetId: Long) {
         processor.onNext(projectId.to(datasetId))
-    }
-
-    fun getUserJSON(user: UserModel): String = rest.getUserJSON(user)
-
-    fun getNewRecordJSON(): String {
-        val emptyRecords: MutableList<EmptyRecordData> = mutableListOf()
-        val amigoId = UUID.randomUUID().toString().replace("-", "")
-        emptyRecords.add(EmptyRecordData(amigoId))
-        val rec = NewRecord(count = 1, columns = schema.get(), data = emptyRecords, is_new = true)
-        return rest.getJSON(rec)
-    }
-
-    fun getRelatedTablesJSON(): String {
-        val rtlist: MutableList<RelatedTableItem> = mutableListOf()
-        related_tables.get().forEach { it ->
-            rtlist.add(RelatedTableItem(
-                    id = it.id.toString(),
-                    name = it.name))
-        }
-        return rest.getListJSON(rtlist)
-    }
-
-    fun getGPSInfoJSON(location: Location?): String {
-        var json = rest.getJSON(GPSInfoJson())
-        location?.let { l ->
-            val gps = GPSInfoJson(
-                    gpsActive = "1",
-                    longitude = l.longitude.toString(),
-                    latitude = l.latitude.toString(),
-                    altitude = l.altitude.toString(),
-                    horizontalAccuracy = l.accuracy.toString(),
-                    bearing = l.bearing.toString(),
-                    speed = l.speed.toString())
-            json = rest.getJSON(gps)
-        }
-        return json
     }
 
     private fun fetchUser(): Single<UserModel> = rest.fetchUser().doOnSuccess { this.user.set(it) }
@@ -253,26 +214,17 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                 .flatMap { Observable.just(it.name) }
     }
 
-    fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileProgressEvent>
-            = fileUploader.uploadAllPhotos(projectId, datasetId)
-
-    fun deletePhotoRecord(record: RelatedRecord)
-            = fileUploader.deletePhoto(record)
-
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest,
+                                      private val moshi: Moshi,
                                       private val config: SurveyConfig,
-                                      private val locationManager: RxLocationManager,
-                                      private val fileUploader: FileUploader,
-                                      private val locationViewModel: LocationViewModel,
-                                      private val connectivityManager: ConnectivityManager,
                                       private val repository: Repository) : ViewModelFactory<FormViewModel>() {
 
         override val modelClass = FormViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(this.modelClass)) {
-                return FormViewModel(rest, config, locationManager, fileUploader, locationViewModel, connectivityManager, repository) as T
+                return FormViewModel(rest, moshi, config, repository) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }
@@ -280,11 +232,6 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
 
     fun saveRecord(rec: String) {
         repository.formRecordDao().insert( FormRecord(rec) )
-    }
-
-    fun submitSavedRecords(changesetViewModel: ChangesetViewModel, project: ProjectModel, dataset: DatasetModel): Observable<RecordsUploadProgress> {
-        val records = repository.formRecordDao().all
-        return changesetViewModel.submitRecords(records, project, dataset)
     }
 
     fun getSavedRecordsNum(): Int {

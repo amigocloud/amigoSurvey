@@ -177,33 +177,6 @@ class AmigoRest @Inject constructor(
         config.amigoTokenJson.value = ""
     }
 
-    fun getUserJSON(user: UserModel): String {
-        val userObj = UserJSON(
-                id = user.id.toString(),
-                email = user.email,
-                custom_id = user.custom_id,
-                first_name = user.first_name,
-                last_name = user.last_name,
-                organization = user.organization,
-                visible_projects = user.visible_projects,
-                projects = user.projectsUrl)
-        return moshi.adapter(UserJSON::class.java).toJson(userObj)
-    }
-
-    fun getProjectJSON(p: ProjectModel): String {
-        val obj = ProjectJSON(
-                id = p.id.toString(),
-                name = p.name,
-                description = p.description,
-                organization = p.organization,
-                history_dataset_id = p.history_dataset_id.toString())
-        return moshi.adapter(ProjectJSON::class.java).toJson(obj)
-    }
-
-    fun getListJSON(list: List<Any>): String = moshi.adapter(Any::class.java).toJson(list)
-
-    fun getJSON(obj: Any): String = moshi.adapter(Any::class.java).toJson(obj)
-
     fun fetchUser(): Single<UserModel> = user.toMaybe()
             .switchIfEmpty(amigoApi.getUser().doOnSuccess { user = it })
 

@@ -26,9 +26,11 @@ import android.content.Intent
 import android.location.Location
 import android.net.Uri
 import android.util.Log
+import com.amigocloud.amigosurvey.util.getGpsInfoJson
+import com.squareup.moshi.Moshi
 
 
-class AmigoBridge(private val formActivity: FormActivity) {
+class AmigoBridge(private val formActivity: FormActivity, private val moshi: Moshi) {
 
     var formType: String = ""
 
@@ -62,8 +64,8 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     fun runJS(url: String) {
         formActivity.runOnUiThread(Runnable {
-            if (formActivity.isReady())
-                formActivity.getWebView().loadUrl(url)
+            if (formActivity.ready)
+                formActivity.webView.loadUrl(url)
         })
     }
 
@@ -266,7 +268,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun getGPSinfo(): String {
-        return formActivity.getViewModel().getGPSInfoJSON(lastLocation)
+        return lastLocation.getGpsInfoJson(moshi)
     }
 
     @JavascriptInterface
