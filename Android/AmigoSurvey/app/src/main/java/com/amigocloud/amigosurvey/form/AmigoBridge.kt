@@ -285,7 +285,7 @@ class AmigoBridge(private val formActivity: FormActivity) {
 
     @JavascriptInterface
     fun updateRow(originalJson: String, updateJson: String) {
-        formActivity.addNewRecord(updateJson)
+        formActivity.submitNewRecord(updateJson)
     }
 
     @JavascriptInterface

@@ -60,6 +60,18 @@
                 android:scaleType="centerInside"
                 android:background="@drawable/gps_off"
                 android:onClick="@{() -> activity.onGPSInfo()}"/>
+
+            <TextView
+                android:id="@+id/records_info"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignBaseline="@+id/gps_info_button"
+                android:layout_alignBottom="@+id/gps_info_button"
+                android:layout_toEndOf="@+id/gps_info_button"
+                android:paddingEnd="10dp"
+                android:paddingStart="10dp"
+                android:textColor="#FFFFFF"
+                android:textAlignment="viewEnd"/>
         </RelativeLayout>
 
         <WebView

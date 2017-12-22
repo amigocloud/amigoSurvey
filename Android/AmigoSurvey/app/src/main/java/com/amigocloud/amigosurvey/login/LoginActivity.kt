@@ -5,6 +5,7 @@ import android.content.Intent
 import android.databinding.DataBindingUtil
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import android.widget.Toast
 import com.amigocloud.amigosurvey.ApplicationScope
 import com.amigocloud.amigosurvey.R
@@ -12,6 +13,9 @@ import com.amigocloud.amigosurvey.databinding.ActivityLoginBinding
 import com.amigocloud.amigosurvey.selector.SelectorActivity
 import toothpick.Toothpick
 import javax.inject.Inject
+import android.content.Context.CONNECTIVITY_SERVICE
+
+
 
 class LoginActivity : AppCompatActivity() {
 
@@ -38,6 +42,10 @@ class LoginActivity : AppCompatActivity() {
                 } ?: startActivity(Intent(this, SelectorActivity::class.java))
             }
         })
+
+        if(!viewModel.isConnected()) {
+            startActivity(Intent(this, SelectorActivity::class.java))
+        }
     }
 
     override fun onDestroy() {

@@ -24,10 +24,14 @@ package com.amigocloud.amigosurvey.form
 import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.LiveDataReactiveStreams
 import android.arch.lifecycle.ViewModel
+import android.arch.persistence.room.*
 import android.databinding.ObservableField
 import android.location.Location
+import android.net.ConnectivityManager
+import android.util.Log
 import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
+import com.amigocloud.amigosurvey.repository.Repository
 import com.amigocloud.amigosurvey.repository.SurveyConfig
 import com.amigocloud.amigosurvey.util.unzipFile
 import com.amigocloud.amigosurvey.util.writeToDisk
@@ -54,7 +58,6 @@ data class FormViewState(val userJson: String = "{}",
                          var relatedTablesJson: String = "[]",
                          var projectJson: String = "[]",
                          var formDescription: String = "{}",
-                         var gpsInfo: String = "{}",
                          val error: Throwable? = null)
 
 data class EmptyRecordData(var amigo_id: String)
@@ -83,7 +86,10 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                         private val config: SurveyConfig,
                                         private val locationManager: RxLocationManager,
                                         private val fileUploader: FileUploader,
-                                        val locationViewModel: LocationViewModel) : ViewModel() {
+                                        val locationViewModel: LocationViewModel,
+                                        private val connectivityManager: ConnectivityManager,
+                                        private val repository: Repository) : ViewModel() {
+    val TAG = "FormViewModel"
 
     private val supportFname = "support_files.zip"
 
@@ -97,14 +103,11 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     val schema = ObservableField<List<Any>>()
     var recordJSON: String? = null
 
-
-//    var lastLocationSingle: Single<Location> = Single.just(Location(LocationManager.PASSIVE_PROVIDER))
-
     val events: LiveData<FormViewState> = LiveDataReactiveStreams.fromPublisher(processor
             .filter { (pId, dId) ->
                 // Prevent from creating the same state multiple times
                 !((project.get() != null && project.get().id == pId) ||
-                  (dataset.get() != null && dataset.get().id == dId))
+                        (dataset.get() != null && dataset.get().id == dId))
             }
             .flatMapSingle { (pId, dId) ->
                 loadProjectAndDataset(pId, dId)
@@ -120,23 +123,26 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                 SingleFromCallable.just(File(config.webFormDir + supportFname))
                             }
                         }
-                        .flatMap { fetchRelatedTables()
-                                .doOnSuccess { rt ->
-                                    related_tables.set(rt)
-                                }}
-                        .flatMap { fetchSchema().doOnSuccess { sc -> schema.set(sc) }}
-                        .flatMap { fetchHistoryDataset()
-                                .doOnSuccess {
-                                    if (it.isNotEmpty()) {
-                                        history_dataset.set(it[0])
-                                        project.get().history_dataset_id = history_dataset.get().id.toString()
+                        .flatMap {
+                            fetchRelatedTables()
+                                    .doOnSuccess { rt ->
+                                        related_tables.set(rt)
                                     }
-                                }
+                        }
+                        .flatMap { fetchSchema().doOnSuccess { sc -> schema.set(sc) } }
+                        .flatMap {
+                            fetchHistoryDataset()
+                                    .doOnSuccess {
+                                        if (it.isNotEmpty()) {
+                                            history_dataset.set(it[0])
+                                            project.get().history_dataset_id = history_dataset.get().id.toString()
+                                        }
+                                    }
                         }
                         .flatMap { fetchForm() }
                         .map {
                             var create_block_json: Any = "{}"
-                            it.create_block_json?.let{ create_block_json = it }
+                            it.create_block_json?.let { create_block_json = it }
                             if (recordJSON == null) {
                                 recordJSON = getNewRecordJSON()
                             }
@@ -150,8 +156,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                     recordJson = recordJSON!!,
                                     relatedTablesJson = getRelatedTablesJSON(),
                                     projectJson = rest.getProjectJSON(project.get()),
-                                    formDescription = rest.getJSON(create_block_json),
-                                    gpsInfo = getGPSInfoJSON(locationViewModel.lastLocationSingle.blockingGet())
+                                    formDescription = rest.getJSON(create_block_json)
                             )
                         }
                         .onErrorReturn { FormViewState(error = it) }
@@ -164,16 +169,16 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     fun getUserJSON(user: UserModel): String = rest.getUserJSON(user)
 
     fun getNewRecordJSON(): String {
-        val emptyRecords : MutableList<EmptyRecordData> = mutableListOf()
+        val emptyRecords: MutableList<EmptyRecordData> = mutableListOf()
         val amigoId = UUID.randomUUID().toString().replace("-", "")
         emptyRecords.add(EmptyRecordData(amigoId))
         val rec = NewRecord(count = 1, columns = schema.get(), data = emptyRecords, is_new = true)
-        return  rest.getJSON(rec)
+        return rest.getJSON(rec)
     }
 
     fun getRelatedTablesJSON(): String {
         val rtlist: MutableList<RelatedTableItem> = mutableListOf()
-        related_tables.get().forEach { it->
+        related_tables.get().forEach { it ->
             rtlist.add(RelatedTableItem(
                     id = it.id.toString(),
                     name = it.name))
@@ -197,7 +202,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
         return json
     }
 
-    private fun fetchUser(): Single<UserModel> = rest.fetchUser().doOnSuccess {this.user.set(it) }
+    private fun fetchUser(): Single<UserModel> = rest.fetchUser().doOnSuccess { this.user.set(it) }
 
     private fun fetchForm(): Single<FormModel> = rest.fetchForms(project.get().id, dataset.get().id)
 
@@ -245,7 +250,7 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
     fun getCustomFieldName(custom_type: String): Observable<String> {
         return rest.fetchSchema(project.get().id, dataset.get().id)
                 .flatMapObservable { Observable.fromIterable(it.schema) }
-                .filter{ (it.custom_type == custom_type) }
+                .filter { (it.custom_type == custom_type) }
                 .flatMap { Observable.just(it.name) }
     }
 
@@ -260,16 +265,75 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
                                       private val config: SurveyConfig,
                                       private val locationManager: RxLocationManager,
                                       private val fileUploader: FileUploader,
-                                      private val locationViewModel: LocationViewModel) : ViewModelFactory<FormViewModel>() {
+                                      private val locationViewModel: LocationViewModel,
+                                      private val connectivityManager: ConnectivityManager,
+                                      private val repository: Repository) : ViewModelFactory<FormViewModel>() {
 
         override val modelClass = FormViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            if(modelClass.isAssignableFrom(this.modelClass)) {
-                return FormViewModel(rest, config, locationManager, fileUploader, locationViewModel) as T
+            if (modelClass.isAssignableFrom(this.modelClass)) {
+                return FormViewModel(rest, config, locationManager, fileUploader, locationViewModel, connectivityManager, repository) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }
     }
 
+    fun isConnected(): Boolean {
+        try {
+            val activeNetwork = connectivityManager.activeNetworkInfo
+            return activeNetwork != null && activeNetwork.isConnectedOrConnecting
+        } catch (e: Exception) {
+            Log.w(TAG, e.toString())
+        }
+        return false
+    }
+
+    fun saveRecord(rec: String) {
+        repository.formRecordDao().insert( FormRecord(rec) )
+    }
+
+    fun submitSavedRecords(changesetViewModel: ChangesetViewModel, project: ProjectModel, dataset: DatasetModel): Observable<RecordsUploadProgress> {
+        val records = repository.formRecordDao().all
+        return changesetViewModel.submitRecords(records, project, dataset)
+    }
+
+    fun getSavedRecordsNum(): Int {
+        val records = repository.formRecordDao().all
+        return records.count()
+    }
+
+    fun getSavedPhotosNum(): Int {
+        val records = repository.relatedRecordDao().all
+        return records.count()
+    }
+
+    fun deleteSavedRecord(record: FormRecord) {
+        repository.formRecordDao().delete(record)
+    }
+
 }
+
+@Entity(tableName = "FormRecord")
+data class FormRecord(
+        @PrimaryKey
+        @ColumnInfo(name = "json")
+        var json: String = ""
+)
+
+@Dao
+interface FormRecordDao {
+    @get:Query("SELECT * FROM FormRecord")
+    val all: List<FormRecord>
+
+    @Query("DELETE FROM FormRecord")
+    fun deleteAll()
+
+    @Insert
+    fun insert(record: FormRecord)
+
+    @Delete
+    fun delete(record: FormRecord)
+
+}
+

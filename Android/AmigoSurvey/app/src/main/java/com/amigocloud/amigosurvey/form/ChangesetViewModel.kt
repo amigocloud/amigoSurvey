@@ -8,6 +8,7 @@ import com.amigocloud.amigosurvey.repository.SurveyConfig
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
 import com.squareup.moshi.Moshi
+import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.internal.operators.single.SingleFromCallable
 import okhttp3.MediaType
@@ -18,15 +19,36 @@ import okhttp3.RequestBody
 
 
 
+data class RecordsUploadProgress (
+        var recordIndex: Int = 0,
+        var recordsTotal: Int = 0,
+        var record: FormRecord
+)
+
 class ChangesetViewModel(private val rest: AmigoRest,
                          private val moshi: Moshi,
                          private val config: SurveyConfig) : ViewModel() {
 
-    fun addNewRecord(rec:String, project: ProjectModel, dataset: DatasetModel): Single<Any> {
+    fun submitNewRecord(rec:String, project: ProjectModel, dataset: DatasetModel): Single<Any> {
             val json = escapeJSON(getChangesetJSON(rec, project, dataset))
             val body = RequestBody.create(MediaType.parse("application/json"),
                     "{\"changeset\":\"[${json}]\"}")
             return rest.submitChangeset(project.submit_changeset, body)
+    }
+
+    fun submitRecords(records: List<FormRecord>, project: ProjectModel, dataset: DatasetModel): Observable<RecordsUploadProgress> {
+        var index = -1
+        return Observable.fromIterable(records)
+                .map { rec ->
+                    val json = escapeJSON(getChangesetJSON(rec.json, project, dataset))
+                    val body = RequestBody.create(MediaType.parse("application/json"),
+                            "{\"changeset\":\"[${json}]\"}")
+                    rest.submitChangeset(project.submit_changeset, body).toObservable().to(rec)
+                }
+                .map { (responce, rec) ->
+                    index += 1
+                    RecordsUploadProgress(index, records.size, rec)
+                }
     }
 
     fun getChangesetJSON(record: String, project: ProjectModel, dataset: DatasetModel) : String {

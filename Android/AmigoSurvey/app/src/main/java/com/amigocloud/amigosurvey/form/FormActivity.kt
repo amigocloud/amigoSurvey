@@ -39,6 +39,7 @@ import android.databinding.DataBindingUtil
 import android.location.Location
 import android.os.Environment
 import android.provider.MediaStore
+import android.support.annotation.MainThread
 import android.support.v4.content.FileProvider
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
@@ -60,6 +61,8 @@ class FormActivity : AppCompatActivity() {
         val BASE_URL = "https://www.amigocloud.com"
         internal val FORM_FRAGMENT_TAG = "FORM_FRAGMENT_TAG"
     }
+
+    val TAG = "FormActivity"
 
     private val INITIAL_PERMS = arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -149,6 +152,16 @@ class FormActivity : AppCompatActivity() {
 
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
+
+        val rn = viewModel.getSavedRecordsNum()
+        val pn = viewModel.getSavedPhotosNum()
+        if(rn > 0 ) {
+            if(pn > 0 ) {
+                records_info.text = "Records:$rn Photos:$pn"
+            } else {
+                records_info.text = "Records:$rn"
+            }
+        }
     }
 
     fun updateGPSLocation(location: Location) {
@@ -175,10 +188,8 @@ class FormActivity : AppCompatActivity() {
 
     fun onSave() {
         Log.e("---", "save")
-        if(haveLocation) {
-            showProgressDialog()
+        if(true) {//haveLocation) {
             bridge.submit()
-            uploadPhotos()
         } else {
             val ad = AlertDialog.Builder(this)
             ad.setTitle(getString(R.string.no_location_title))
@@ -233,14 +244,23 @@ class FormActivity : AppCompatActivity() {
         ad.show()
     }
 
-    fun addNewRecord(rec: String) {
-        changesetViewModel.addNewRecord(rec, viewModel.project.get(), viewModel.dataset.get())
-                .doOnError { error ->
-                    Log.e("---", error.toString())
-                }
-                .subscribe({ it ->
-                    Log.e("---", it.toString())
-                })
+    fun submitNewRecord(rec: String) {
+        viewModel.saveRecord(rec)
+        if(viewModel.isConnected()) {
+            showProgressDialog()
+            viewModel.submitSavedRecords(changesetViewModel, viewModel.project.get(), viewModel.dataset.get())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .doOnError { error -> Log.e(TAG, error.toString()) }
+                    .subscribe({ it ->
+                        Log.e(TAG, it.toString())
+                        viewModel.deleteSavedRecord(it.record)
+                        val pr = (it.recordIndex.toFloat() / it.recordsTotal.toFloat()) * 100.0
+                        progressDialog?.updateProgress(pr.toLong(), "Record(s)")
+                    })
+            uploadPhotos()
+        } else {
+            this.finish()
+        }
     }
 
     fun isReady(): Boolean {

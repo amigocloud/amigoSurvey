@@ -10,6 +10,7 @@ import com.amigocloud.amigosurvey.toothpick.CacheDir
 import com.facebook.stetho.okhttp3.StethoInterceptor
 import okhttp3.Cache
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import toothpick.ProvidesSingletonInScope
 import java.io.File
 import javax.inject.Inject
@@ -27,6 +28,7 @@ class HttpClientProvider @Inject constructor(private val authenticator: AmigoAut
     val TAG = "HttpClientProvider"
     val cacheInterceptor = CacheInterceptor(connectivityManager)
     val offlineCacheInterceptor = OfflineCacheInterceptor(connectivityManager)
+    val logging = HttpLoggingInterceptor()
 
     override fun get(): OkHttpClient = OkHttpClient.Builder()
             .authenticator(authenticator)
@@ -35,14 +37,16 @@ class HttpClientProvider @Inject constructor(private val authenticator: AmigoAut
             .addNetworkInterceptor(cacheInterceptor)
             .cache(provideCache())
             .apply { if (BuildConfig.DEBUG) addNetworkInterceptor(StethoInterceptor()) }
+//            .addInterceptor(logging)
             .build()
 
     private fun provideCache(): Cache? {
+        logging.level = HttpLoggingInterceptor.Level.BASIC
         var cache: Cache? = null
 
         try {
             cache = Cache( File(cacheDir.absoluteFile, "http-cache"),
-                    (10 * 1024 * 1024).toLong()) // 10 MB
+                    (1000 * 1024 * 1024).toLong()) // 1000 MB
         } catch (e: Exception) {
             Log.e(TAG, "Could not create Cache!")
         }
