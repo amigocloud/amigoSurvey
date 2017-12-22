@@ -1,16 +1,12 @@
 package com.amigocloud.amigosurvey.repository
 
-import android.content.Context
 import android.net.ConnectivityManager
-import android.util.Log
 import okhttp3.CacheControl
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
-import retrofit2.adapter.rxjava2.Result.response
-import com.amigocloud.amigosurvey.R.id.header
-
+import com.amigocloud.amigosurvey.util.isConnected
 
 
 class CacheInterceptor constructor(private val connectivityManager: ConnectivityManager) : Interceptor {
@@ -22,7 +18,7 @@ class CacheInterceptor constructor(private val connectivityManager: Connectivity
         val response = chain.proceed(chain.request())
         val cacheControl: CacheControl
 
-        if (isConnected()) {
+        if (connectivityManager.isConnected()) {
             cacheControl = CacheControl.Builder()
                     .maxAge(0, TimeUnit.SECONDS)
                     .build()
@@ -38,16 +34,6 @@ class CacheInterceptor constructor(private val connectivityManager: Connectivity
                 .header(HEADER_CACHE_CONTROL, cacheControl.toString())
                 .build()
     }
-
-    fun isConnected(): Boolean {
-        try {
-            val activeNetwork = connectivityManager.activeNetworkInfo
-            return activeNetwork != null && activeNetwork.isConnectedOrConnecting
-        } catch (e: Exception) {
-            Log.w(TAG, e.toString())
-        }
-        return false
-    }
 }
 
 class OfflineCacheInterceptor @Inject constructor(private val connectivityManager: ConnectivityManager) : Interceptor {
@@ -59,7 +45,7 @@ class OfflineCacheInterceptor @Inject constructor(private val connectivityManage
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
 
-        if (!isConnected()) {
+        if (!connectivityManager.isConnected()) {
             val cacheControl = CacheControl.Builder()
                     .maxStale(7, TimeUnit.DAYS)
                     .build()
@@ -72,15 +58,5 @@ class OfflineCacheInterceptor @Inject constructor(private val connectivityManage
         }
 
         return chain.proceed(request)
-    }
-
-    fun isConnected(): Boolean {
-        try {
-            val activeNetwork = connectivityManager.activeNetworkInfo
-            return activeNetwork != null && activeNetwork.isConnectedOrConnecting
-        } catch (e: Exception) {
-            Log.w(TAG, e.toString())
-        }
-        return false
     }
 }

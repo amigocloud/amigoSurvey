@@ -28,7 +28,6 @@ import android.arch.persistence.room.*
 import android.databinding.ObservableField
 import android.location.Location
 import android.net.ConnectivityManager
-import android.util.Log
 import com.amigocloud.amigosurvey.models.*
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.Repository
@@ -277,16 +276,6 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }
-    }
-
-    fun isConnected(): Boolean {
-        try {
-            val activeNetwork = connectivityManager.activeNetworkInfo
-            return activeNetwork != null && activeNetwork.isConnectedOrConnecting
-        } catch (e: Exception) {
-            Log.w(TAG, e.toString())
-        }
-        return false
     }
 
     fun saveRecord(rec: String) {

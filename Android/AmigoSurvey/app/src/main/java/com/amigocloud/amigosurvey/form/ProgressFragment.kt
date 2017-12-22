@@ -1,10 +1,7 @@
 package com.amigocloud.amigosurvey.form
 
-import android.app.Activity
-import android.app.Dialog
 import android.app.DialogFragment
 import android.os.Bundle
-import android.text.Editable
 import com.amigocloud.amigosurvey.R
 import android.view.ViewGroup
 import android.view.LayoutInflater
@@ -18,6 +15,8 @@ class ProgressFragment : DialogFragment() {
         fun onChangeProgressValue(value: Int)
     }
     private var listener: ProgressDialogListener? = null
+    private var progress = 0L
+    private var message = ""
 
     companion object {
         fun newInstance(num: Int): ProgressFragment {
@@ -26,13 +25,16 @@ class ProgressFragment : DialogFragment() {
     }
 
     fun updateProgress(progress: Long, message: String) {
-        upload_progress.progress = progress.toInt()
-        text.text = message
+        this.progress = progress
+        this.message = message
+        upload_progress?.let {it.progress = progress.toInt() }
+        text?.let { it.text = message }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                              savedInstanceState: Bundle?): View? {
-        val v = inflater.inflate(R.layout.progress_fragment, container, false)
-        return v
-    }
+                              savedInstanceState: Bundle?): View? =
+            inflater.inflate(R.layout.progress_fragment, container, false).apply {
+                updateProgress(progress, message)
+            }
+
 }

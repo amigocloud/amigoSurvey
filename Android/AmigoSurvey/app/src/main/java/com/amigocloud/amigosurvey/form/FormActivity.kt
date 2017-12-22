@@ -37,12 +37,14 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.databinding.DataBindingUtil
 import android.location.Location
+import android.net.ConnectivityManager
 import android.os.Environment
 import android.provider.MediaStore
 import android.support.annotation.MainThread
 import android.support.v4.content.FileProvider
 import android.util.Log
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
+import com.amigocloud.amigosurvey.util.isConnected
 import com.android.IntentIntegrator
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -106,6 +108,8 @@ class FormActivity : AppCompatActivity() {
     @Inject lateinit var viewModelFactory: FormViewModel.Factory
     @Inject lateinit var photoModelFactory: PhotoViewModel.Factory
     @Inject lateinit var changesetModelFactory: ChangesetViewModel.Factory
+
+    @Inject lateinit var connectivityManager: ConnectivityManager
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -246,17 +250,17 @@ class FormActivity : AppCompatActivity() {
 
     fun submitNewRecord(rec: String) {
         viewModel.saveRecord(rec)
-        if(viewModel.isConnected()) {
+        if(connectivityManager.isConnected()) {
             showProgressDialog()
             viewModel.submitSavedRecords(changesetViewModel, viewModel.project.get(), viewModel.dataset.get())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .doOnError { error -> Log.e(TAG, error.toString()) }
                     .subscribe({ it ->
-                        Log.e(TAG, it.toString())
                         viewModel.deleteSavedRecord(it.record)
                         val pr = (it.recordIndex.toFloat() / it.recordsTotal.toFloat()) * 100.0
                         progressDialog?.updateProgress(pr.toLong(), "Record(s)")
-                    })
+                    },
+                    { error -> Log.e(TAG, error.toString()) })
+
             uploadPhotos()
         } else {
             this.finish()

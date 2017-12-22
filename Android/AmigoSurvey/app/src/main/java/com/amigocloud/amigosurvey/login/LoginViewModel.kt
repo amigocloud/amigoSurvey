@@ -7,7 +7,6 @@ import android.databinding.ObservableBoolean
 import android.databinding.ObservableField
 import android.net.ConnectivityManager
 import android.text.TextUtils
-import android.util.Log
 import com.amigocloud.amigosurvey.models.UserModel
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
@@ -35,23 +34,13 @@ class LoginViewModel(private val rest: AmigoRest, private val connectivityManage
             .doAfterNext { isLoading.set(false) })
 
     fun onLogin() {
-        val email = email.get()
-        val password = password.get()
+        val email = "victor@amigocloud.com" //email.get()
+        val password = "11burelom" //password.get()
 
         if (!TextUtils.isEmpty(email) && !TextUtils.isEmpty(password)) {
             isLoading.set(true)
             loginProcessor.onNext(email.to(password))
         }
-    }
-
-    fun isConnected(): Boolean {
-        try {
-            val activeNetwork = connectivityManager.activeNetworkInfo
-            return activeNetwork != null && activeNetwork.isConnectedOrConnecting
-        } catch (e: Exception) {
-            Log.w(TAG, e.toString())
-        }
-        return false
     }
 
     @Suppress("UNCHECKED_CAST")

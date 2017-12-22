@@ -10,14 +10,12 @@ import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
 import com.squareup.moshi.Moshi
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.functions.BiFunction
 import io.reactivex.internal.operators.single.SingleFromCallable
 import okhttp3.MediaType
 import org.json.JSONObject
 import javax.inject.Inject
 import okhttp3.RequestBody
-
-
-
 
 data class RecordsUploadProgress (
         var recordIndex: Int = 0,
@@ -29,24 +27,16 @@ class ChangesetViewModel(private val rest: AmigoRest,
                          private val moshi: Moshi,
                          private val config: SurveyConfig) : ViewModel() {
 
-    fun submitNewRecord(rec:String, project: ProjectModel, dataset: DatasetModel): Single<Any> {
-            val json = escapeJSON(getChangesetJSON(rec, project, dataset))
-            val body = RequestBody.create(MediaType.parse("application/json"),
-                    "{\"changeset\":\"[${json}]\"}")
-            return rest.submitChangeset(project.submit_changeset, body)
-    }
-
     fun submitRecords(records: List<FormRecord>, project: ProjectModel, dataset: DatasetModel): Observable<RecordsUploadProgress> {
-        var index = -1
         return Observable.fromIterable(records)
-                .map { rec ->
-                    val json = escapeJSON(getChangesetJSON(rec.json, project, dataset))
+                .zipWith(Observable.range(0, Int.MAX_VALUE), BiFunction { record:FormRecord, index:Int -> record.to(index)})
+                .flatMapSingle { recWithIndex ->
+                    val json = escapeJSON(getChangesetJSON(recWithIndex.first.json, project, dataset))
                     val body = RequestBody.create(MediaType.parse("application/json"),
                             "{\"changeset\":\"[${json}]\"}")
-                    rest.submitChangeset(project.submit_changeset, body).toObservable().to(rec)
+                    rest.submitChangeset(project.submit_changeset, body).map { recWithIndex }
                 }
-                .map { (responce, rec) ->
-                    index += 1
+                .map { (rec, index) ->
                     RecordsUploadProgress(index, records.size, rec)
                 }
     }
