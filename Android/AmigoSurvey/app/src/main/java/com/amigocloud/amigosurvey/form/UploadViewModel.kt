@@ -27,22 +27,19 @@ data class ChunkedUploadResponse (var upload_id:String = "",
 
 sealed class FileProgressEvent(val message: String,
                                val fileIndex: Int,
-                               val filesTotal: Int,
-                               val record: RelatedRecord?)
+                               val filesTotal: Int)
 
 class FileUploadProgressEvent(
         message: String = "",
         fileIndex: Int = 0,
         filesTotal: Int = 0,
-        record: RelatedRecord? = null,
         val bytesSent: Int = 0,
         val bytesTotal: Long = 0
-) : FileProgressEvent(message, fileIndex, filesTotal, record)
+) : FileProgressEvent(message, fileIndex, filesTotal)
 
 class FileUploadCompleteEvent(message: String = "",
                               fileIndex: Int = 0,
-                              filesTotal: Int = 0,
-                              record: RelatedRecord? = null) : FileProgressEvent(message, fileIndex, filesTotal, record)
+                              filesTotal: Int = 0) : FileProgressEvent(message, fileIndex, filesTotal)
 
 data class FileChunk (
         var fileName: String = "",
@@ -74,7 +71,7 @@ class FileUploader(private val rest: AmigoRest,
         var index = 0
         val totalPhotos = repository.relatedRecordDao().all.size
         return if (totalPhotos == 0) {
-            Observable.just(FileUploadCompleteEvent("No files to upload", -1, 0, null))
+            Observable.just(FileUploadCompleteEvent("No files to upload", -1, 0))
         } else {
             getAllPhotos().concatMap { uploadPhoto(index++, it, projectId, datasetId, totalPhotos) }
         }
@@ -147,16 +144,15 @@ class FileUploader(private val rest: AmigoRest,
                 }
                 .map { fileChunk ->
                     if ( (fileChunk.firstByte + fileChunk.chunkSize).toLong() == fileChunk.fileSize) {
+                        fileChunk.record?.let { deletePhoto(it) }
                         FileUploadCompleteEvent("fileIndex:${fileIndex}, filesTotal:${filesTotal}, uploaded bytes:${fileChunk.firstByte + fileChunk.chunkSize}, fileSize:${fileChunk.fileSize}",
                                 fileIndex,
-                                filesTotal,
-                                fileChunk.record)
+                                filesTotal)
                     } else {
                         FileUploadProgressEvent(
                                 record.filename,
                                 fileIndex,
                                 filesTotal,
-                                fileChunk.record,
                                 fileChunk.firstByte + fileChunk.chunkSize,
                                 fileChunk.fileSize)
                     }

@@ -3,6 +3,7 @@ package com.amigocloud.amigosurvey.form
 import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.LiveDataReactiveStreams
 import android.arch.lifecycle.ViewModel
+import android.util.Log
 import com.amigocloud.amigosurvey.models.DatasetModel
 import com.amigocloud.amigosurvey.models.ProjectModel
 import com.amigocloud.amigosurvey.repository.AmigoRest
@@ -22,16 +23,14 @@ import org.json.JSONObject
 import javax.inject.Inject
 import okhttp3.RequestBody
 
-sealed class RecordsUploadEvent(val record: FormRecord?)
+sealed class RecordsUploadEvent()
 
 class RecordsUploadProgress (
         var recordIndex: Int = 0,
-        var recordsTotal: Int = 0,
-        record: FormRecord?
-) : RecordsUploadEvent(record)
+        var recordsTotal: Int = 0
+) : RecordsUploadEvent()
 
-class RecordsUploadComplete(record: FormRecord?,
-                            val success: Boolean): RecordsUploadEvent(record)
+class RecordsUploadComplete(val success: Boolean): RecordsUploadEvent()
 
 data class RecordsUploadRequest(
        val records: List<FormRecord>,
@@ -56,26 +55,32 @@ class RecordsViewModel(private val rest: AmigoRest,
 
     private fun submitRecords(request: RecordsUploadRequest): Observable<RecordsUploadEvent> {
         if(request.records.size == 0) {
-            return Observable.just(RecordsUploadComplete(null,true))
+            return Observable.just(RecordsUploadComplete(true))
         } else
             return Observable.fromIterable(request.records)
                     .zipWith(Observable.range(0, Int.MAX_VALUE), BiFunction { record:FormRecord, index:Int -> record.to(index)})
-                    .flatMapSingle { recWithIndex ->
+                    .concatMap { recWithIndex ->
                         val json = recWithIndex.first.json.getChangesetJson(request.project, request.dataset)
                         val body = RequestBody.create(MediaType.parse("application/json"),
                                 "{\"changeset\":\"[${json}]\"}")
-                        rest.submitChangeset(request.project.submit_changeset, body).map { recWithIndex }
+                        rest.submitChangeset(request.project.submit_changeset, body).map { recWithIndex }.toObservable()
                     }
                     .map { (rec, index) ->
-                        if (index+1 < request.records.size)
-                            RecordsUploadProgress(index, request.records.size, rec)
-                        else
-                            RecordsUploadComplete(rec,true)
+                        rec?.let { deleteSavedRecord(rec) }
+                        if (index+1 < request.records.size) {
+                            RecordsUploadProgress(index, request.records.size)
+                        } else {
+                            RecordsUploadComplete(true)
+                        }
                     }
     }
 
     fun saveRecord(rec: String) {
-        repository.formRecordDao().insert( FormRecord(rec) )
+        try {
+            repository.formRecordDao().insert(FormRecord(rec))
+        } catch(e :Exception) {
+            Log.e("RecordViewModel", e.toString())
+        }
     }
 
     fun getSavedRecordsNum(): Int {

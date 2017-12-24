@@ -92,7 +92,7 @@ class FormActivity : AppCompatActivity() {
     private lateinit var recordsViewModel: RecordsViewModel
     private lateinit var locationViewModel: LocationViewModel
     private lateinit var bridge: AmigoBridge
-    
+
     private var disposables = CompositeDisposable()
 
     private var photoInfo: PhotoInfo? = null
@@ -146,31 +146,26 @@ class FormActivity : AppCompatActivity() {
 
         recordsViewModel.events.observe(this, Observer { progress ->
             progress?.let {
-                Log.e(TAG, "RecordsUploadProgress event ------------- $progress")
                 when(progress) {
                     is RecordsUploadProgress -> {
-                        progress.record?.let { recordsViewModel.deleteSavedRecord(it) }
                         val pr = (progress.recordIndex.toFloat() / progress.recordsTotal.toFloat()) * 100.0
-                        updateProgress(pr.toInt(), "Record(s)")
+                        updateProgress(pr.toInt(), "Upload Record(s)")
                     }
                     is RecordsUploadComplete -> {
-                        hideProgressBar()
+                        uploadPhotos()
                     }
                 }
             }
         })
 
         fileUploader.events.observe(this, Observer { progress ->
-            Log.e("--- // ---", "fileUploader $progress")
             when (progress) {
                 is FileUploadProgressEvent -> {
                     val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
                     val msg = "File ${progress.fileIndex + 1} of ${progress.filesTotal}: ${progress.message}"
                     updateProgress(pr.toInt(), msg)
-                    // If file uploaded successfully
                 }
                 is FileUploadCompleteEvent -> {
-                    progress.record?.let { fileUploader.deletePhoto(it) }
                     if (progress.fileIndex == progress.filesTotal - 1) {
                         hideProgressBar()
                         this.finish()
@@ -234,7 +229,6 @@ class FormActivity : AppCompatActivity() {
             ad.setMessage(getString(R.string.no_location_message))
             ad.setNeutralButton(getString(R.string.ui_ok), null)
             ad.show()
-
         }
     }
 
@@ -270,7 +264,6 @@ class FormActivity : AppCompatActivity() {
 
         if(connectivityManager.isConnected()) {
             recordsViewModel.submitAllRecords(viewModel.project.get(), viewModel.dataset.get())
-            uploadPhotos()
         } else {
             this.finish()
         }

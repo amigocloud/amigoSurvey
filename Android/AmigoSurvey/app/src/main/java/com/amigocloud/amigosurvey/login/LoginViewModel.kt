@@ -34,8 +34,8 @@ class LoginViewModel(private val rest: AmigoRest, private val connectivityManage
             .doAfterNext { isLoading.set(false) })
 
     fun onLogin() {
-        val email = "victor@amigocloud.com" //email.get()
-        val password = "22burelom" //password.get()
+        val email = email.get()
+        val password = password.get()
 
         if (!TextUtils.isEmpty(email) && !TextUtils.isEmpty(password)) {
             isLoading.set(true)
