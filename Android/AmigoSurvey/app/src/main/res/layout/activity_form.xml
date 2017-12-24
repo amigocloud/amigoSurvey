@@ -1,47 +1,66 @@
-<layout xmlns:android="http://schemas.android.com/apk/res/android">
+<layout xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <data>
+
         <variable
             name="viewModel"
-            type="com.amigocloud.amigosurvey.form.FormViewModel"/>
+            type="com.amigocloud.amigosurvey.form.FormViewModel" />
 
         <variable
             name="activity"
-            type="com.amigocloud.amigosurvey.form.FormActivity"/>
+            type="com.amigocloud.amigosurvey.form.FormActivity" />
     </data>
 
-    <RelativeLayout android:layout_width="match_parent"
+    <RelativeLayout
+        android:layout_width="match_parent"
         android:layout_height="match_parent">
+
         <RelativeLayout
             android:id="@+id/header"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="45dp"
             android:layout_alignParentTop="true"
+            android:layout_gravity="center"
             android:background="@color/colorPrimary"
-            android:gravity="center"
-            android:layout_gravity="center">
+            android:gravity="center">
+
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:background="@color/colorPrimary"
-                android:orientation="horizontal">
+                android:layout_height="45dp"
+                android:orientation="vertical">
 
-                <TextView
-                    android:id="@+id/title_text"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="10"
-                    android:text="Title"
-                    android:textAlignment="viewStart"
-                    android:textColor="#ffffff" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:background="@color/colorPrimary"
+                    android:orientation="horizontal">
 
-                <Button
-                    android:id="@+id/save_button"
-                    android:layout_width="40dp"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/save_icon"
-                    android:onClick="@{() -> activity.onSave()}"
-                    android:scaleType="centerInside" />
+                    <TextView
+                        android:id="@+id/title_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="10"
+                        android:text="Title"
+                        android:textAlignment="viewStart"
+                        android:textColor="#ffffff" />
+
+                    <Button
+                        android:id="@+id/save_button"
+                        android:layout_width="40dp"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/save_icon"
+                        android:onClick="@{() -> activity.onSave()}"
+                        android:scaleType="centerInside" />
+
+                </LinearLayout>
+                <ProgressBar
+                    android:id="@+id/progress_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="5dp"
+                    android:visibility="invisible"/>
             </LinearLayout>
         </RelativeLayout>
 
@@ -50,16 +69,17 @@
             android:layout_width="match_parent"
             android:layout_height="40dp"
             android:layout_alignParentBottom="true"
+            android:layout_gravity="center"
             android:background="@color/colorPrimary"
-            android:gravity="start"
-            android:layout_gravity="center">
+            android:gravity="start">
+
             <Button
                 android:id="@+id/gps_info_button"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:scaleType="centerInside"
                 android:background="@drawable/gps_off"
-                android:onClick="@{() -> activity.onGPSInfo()}"/>
+                android:onClick="@{() -> activity.onGPSInfo()}"
+                android:scaleType="centerInside" />
 
             <TextView
                 android:id="@+id/records_info"
@@ -70,8 +90,8 @@
                 android:layout_toEndOf="@+id/gps_info_button"
                 android:paddingEnd="10dp"
                 android:paddingStart="10dp"
-                android:textColor="#FFFFFF"
-                android:textAlignment="viewEnd"/>
+                android:textAlignment="viewEnd"
+                android:textColor="#FFFFFF" />
         </RelativeLayout>
 
         <WebView
@@ -80,7 +100,7 @@
             android:layout_height="fill_parent"
             android:layout_above="@+id/footer"
             android:layout_below="@+id/header"
-            android:fillViewport="true"/>
+            android:fillViewport="true" />
 
         <ProgressBar
             android:id="@+id/load_progress"

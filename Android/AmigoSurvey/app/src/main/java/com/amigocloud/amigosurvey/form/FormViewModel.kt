@@ -230,24 +230,6 @@ class FormViewModel @Inject constructor(private val rest: AmigoRest,
         }
     }
 
-    fun saveRecord(rec: String) {
-        repository.formRecordDao().insert( FormRecord(rec) )
-    }
-
-    fun getSavedRecordsNum(): Int {
-        val records = repository.formRecordDao().all
-        return records.count()
-    }
-
-    fun getSavedPhotosNum(): Int {
-        val records = repository.relatedRecordDao().all
-        return records.count()
-    }
-
-    fun deleteSavedRecord(record: FormRecord) {
-        repository.formRecordDao().delete(record)
-    }
-
 }
 
 @Entity(tableName = "FormRecord")

@@ -22,11 +22,16 @@ import org.json.JSONObject
 import javax.inject.Inject
 import okhttp3.RequestBody
 
-data class RecordsUploadProgress (
+sealed class RecordsUploadEvent(val record: FormRecord?)
+
+class RecordsUploadProgress (
         var recordIndex: Int = 0,
         var recordsTotal: Int = 0,
-        var record: FormRecord
-)
+        record: FormRecord?
+) : RecordsUploadEvent(record)
+
+class RecordsUploadComplete(record: FormRecord?,
+                            val success: Boolean): RecordsUploadEvent(record)
 
 data class RecordsUploadRequest(
        val records: List<FormRecord>,
@@ -39,7 +44,7 @@ class RecordsViewModel(private val rest: AmigoRest,
 
     private val processor = BehaviorProcessor.create<RecordsUploadRequest>()
 
-    val events: LiveData<RecordsUploadProgress> = LiveDataReactiveStreams.fromPublisher(processor
+    val events: LiveData<RecordsUploadEvent> = LiveDataReactiveStreams.fromPublisher(processor
             .flatMap { request -> submitRecords(request).toFlowable(BackpressureStrategy.LATEST) })
 
 
@@ -49,18 +54,37 @@ class RecordsViewModel(private val rest: AmigoRest,
         processor.onNext(request)
     }
 
-    private fun submitRecords(request: RecordsUploadRequest): Observable<RecordsUploadProgress> {
-        return Observable.fromIterable(request.records)
-                .zipWith(Observable.range(0, Int.MAX_VALUE), BiFunction { record:FormRecord, index:Int -> record.to(index)})
-                .flatMapSingle { recWithIndex ->
-                    val json = recWithIndex.first.json.getChangesetJson(request.project, request.dataset)
-                    val body = RequestBody.create(MediaType.parse("application/json"),
-                            "{\"changeset\":\"[${json}]\"}")
-                    rest.submitChangeset(request.project.submit_changeset, body).map { recWithIndex }
-                }
-                .map { (rec, index) ->
-                    RecordsUploadProgress(index, request.records.size, rec)
-                }
+    private fun submitRecords(request: RecordsUploadRequest): Observable<RecordsUploadEvent> {
+        if(request.records.size == 0) {
+            return Observable.just(RecordsUploadComplete(null,true))
+        } else
+            return Observable.fromIterable(request.records)
+                    .zipWith(Observable.range(0, Int.MAX_VALUE), BiFunction { record:FormRecord, index:Int -> record.to(index)})
+                    .flatMapSingle { recWithIndex ->
+                        val json = recWithIndex.first.json.getChangesetJson(request.project, request.dataset)
+                        val body = RequestBody.create(MediaType.parse("application/json"),
+                                "{\"changeset\":\"[${json}]\"}")
+                        rest.submitChangeset(request.project.submit_changeset, body).map { recWithIndex }
+                    }
+                    .map { (rec, index) ->
+                        if (index+1 < request.records.size)
+                            RecordsUploadProgress(index, request.records.size, rec)
+                        else
+                            RecordsUploadComplete(rec,true)
+                    }
+    }
+
+    fun saveRecord(rec: String) {
+        repository.formRecordDao().insert( FormRecord(rec) )
+    }
+
+    fun getSavedRecordsNum(): Int {
+        val records = repository.formRecordDao().all
+        return records.count()
+    }
+
+    fun deleteSavedRecord(record: FormRecord) {
+        repository.formRecordDao().delete(record)
     }
 
     @Suppress("UNCHECKED_CAST")

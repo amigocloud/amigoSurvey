@@ -92,6 +92,11 @@ class FileUploader(private val rest: AmigoRest,
         }
     }
 
+    fun getSavedPhotosNum(): Int {
+        val records = repository.relatedRecordDao().all
+        return records.count()
+    }
+
     private fun uploadPhoto(index: Int, record: RelatedRecord, projectId: Long, datasetId: Long, totalPhotos: Int): Observable<FileProgressEvent> {
         return rest.fetchRelatedTables(projectId, datasetId)
                 .flatMapObservable { Observable.fromIterable(it.results) }

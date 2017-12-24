@@ -42,12 +42,14 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.support.v4.content.FileProvider
 import android.util.Log
+import android.view.View
 import com.amigocloud.amigosurvey.databinding.ActivityFormBinding
 import com.amigocloud.amigosurvey.util.isConnected
 import com.android.IntentIntegrator
 import com.squareup.moshi.Moshi
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
+import kotlinx.android.synthetic.main.activity_form.*
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -90,9 +92,7 @@ class FormActivity : AppCompatActivity() {
     private lateinit var recordsViewModel: RecordsViewModel
     private lateinit var locationViewModel: LocationViewModel
     private lateinit var bridge: AmigoBridge
-
-    private var progressDialog: ProgressFragment? = null
-
+    
     private var disposables = CompositeDisposable()
 
     private var photoInfo: PhotoInfo? = null
@@ -147,9 +147,16 @@ class FormActivity : AppCompatActivity() {
         recordsViewModel.events.observe(this, Observer { progress ->
             progress?.let {
                 Log.e(TAG, "RecordsUploadProgress event ------------- $progress")
-                viewModel.deleteSavedRecord(progress.record)
-                val pr = (progress.recordIndex.toFloat() / progress.recordsTotal.toFloat()) * 100.0
-                progressDialog?.updateProgress(pr.toLong(), "Record(s)")
+                when(progress) {
+                    is RecordsUploadProgress -> {
+                        progress.record?.let { recordsViewModel.deleteSavedRecord(it) }
+                        val pr = (progress.recordIndex.toFloat() / progress.recordsTotal.toFloat()) * 100.0
+                        updateProgress(pr.toInt(), "Record(s)")
+                    }
+                    is RecordsUploadComplete -> {
+                        hideProgressBar()
+                    }
+                }
             }
         })
 
@@ -159,13 +166,13 @@ class FormActivity : AppCompatActivity() {
                 is FileUploadProgressEvent -> {
                     val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
                     val msg = "File ${progress.fileIndex + 1} of ${progress.filesTotal}: ${progress.message}"
-                    progressDialog?.updateProgress(pr.toLong(), msg)
+                    updateProgress(pr.toInt(), msg)
                     // If file uploaded successfully
                 }
                 is FileUploadCompleteEvent -> {
                     progress.record?.let { fileUploader.deletePhoto(it) }
                     if (progress.fileIndex == progress.filesTotal - 1) {
-                        progressDialog?.dismiss()
+                        hideProgressBar()
                         this.finish()
                     }
                 }
@@ -184,8 +191,8 @@ class FormActivity : AppCompatActivity() {
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
 
-        val rn = viewModel.getSavedRecordsNum()
-        val pn = viewModel.getSavedPhotosNum()
+        val rn = recordsViewModel.getSavedRecordsNum()
+        val pn = fileUploader.getSavedPhotosNum()
         if(rn > 0 ) {
             if(pn > 0 ) {
                 binding.recordsInfo.text = "Records:$rn Photos:$pn"
@@ -235,9 +242,15 @@ class FormActivity : AppCompatActivity() {
         fileUploader.uploadAllPhotos(project_id, dataset_id)
     }
 
-    fun showProgressDialog() {
-        progressDialog = ProgressFragment.newInstance(1)
-        progressDialog?.show(fragmentManager, "progressDialog")
+    fun updateProgress(progress: Int, msg: String) {
+        progress_bar.visibility = View.VISIBLE
+        progress_bar.progress = progress
+        binding.recordsInfo.text = msg
+    }
+
+    fun hideProgressBar() {
+        progress_bar.visibility = View.INVISIBLE
+        binding.recordsInfo.text = ""
     }
 
     fun onGPSInfo() {
@@ -253,10 +266,9 @@ class FormActivity : AppCompatActivity() {
     }
 
     fun submitNewRecord(rec: String) {
-        viewModel.saveRecord(rec)
+        recordsViewModel.saveRecord(rec)
 
         if(connectivityManager.isConnected()) {
-            showProgressDialog()
             recordsViewModel.submitAllRecords(viewModel.project.get(), viewModel.dataset.get())
             uploadPhotos()
         } else {
