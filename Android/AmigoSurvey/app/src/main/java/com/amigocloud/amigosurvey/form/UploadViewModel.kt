@@ -3,43 +3,59 @@ package com.amigocloud.amigosurvey.form
 import android.arch.lifecycle.LiveData
 import android.arch.lifecycle.LiveDataReactiveStreams
 import android.arch.lifecycle.ViewModel
+import android.util.Log
+import com.amigocloud.amigosurvey.models.DatasetModel
+import com.amigocloud.amigosurvey.models.ProjectModel
 import com.amigocloud.amigosurvey.models.RelatedRecord
 import com.amigocloud.amigosurvey.repository.AmigoRest
 import com.amigocloud.amigosurvey.repository.Repository
 import com.amigocloud.amigosurvey.repository.SurveyConfig
+import com.amigocloud.amigosurvey.util.getChangesetJson
 import com.amigocloud.amigosurvey.viewmodel.INFLATION_EXCEPTION
 import com.amigocloud.amigosurvey.viewmodel.ViewModelFactory
-import com.squareup.moshi.Moshi
 import io.reactivex.BackpressureStrategy
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.functions.BiFunction
 import io.reactivex.processors.BehaviorProcessor
 import okhttp3.MediaType
 import okhttp3.RequestBody
 import java.io.File
 import java.util.*
 import javax.inject.Inject
-import javax.inject.Singleton
 
 data class ChunkedUploadResponse (var upload_id:String = "",
                                   var offset: Int = 0,
                                   var expires: String = "")
 
-sealed class FileProgressEvent(val message: String,
-                               val fileIndex: Int,
-                               val filesTotal: Int)
+sealed class ProgressEvent(var message: String,
+                           var index: Int,
+                           var total: Int)
 
 class FileUploadProgressEvent(
         message: String = "",
-        fileIndex: Int = 0,
-        filesTotal: Int = 0,
+        index: Int = 0,
+        total: Int = 0,
         val bytesSent: Int = 0,
         val bytesTotal: Long = 0
-) : FileProgressEvent(message, fileIndex, filesTotal)
+) : ProgressEvent(message, index, total)
 
 class FileUploadCompleteEvent(message: String = "",
-                              fileIndex: Int = 0,
-                              filesTotal: Int = 0) : FileProgressEvent(message, fileIndex, filesTotal)
+                              index: Int = 0,
+                              total: Int = 0) : ProgressEvent(message, index, total)
+
+class RecordsUploadProgressEvent(
+        message: String = "",
+        index: Int = 0,
+        total: Int = 0): ProgressEvent(message, index, total)
+
+class RecordsUploadCompleteEvent(message: String = ""): ProgressEvent(message, -1, 0)
+
+data class RecordsUploadRequest(
+        val records: List<FormRecord>,
+        val project: ProjectModel,
+        val dataset: DatasetModel
+)
 
 data class FileChunk (
         var fileName: String = "",
@@ -54,20 +70,22 @@ data class FileChunk (
         var ctype: String = "multipart/form-data; boundary=${boundary}"
 )
 
-class FileUploader(private val rest: AmigoRest,
-                   private val repository: Repository,
-                   private val config: SurveyConfig): ViewModel() {
+class UploadViewModel(private val rest: AmigoRest,
+                      private val repository: Repository,
+                      private val config: SurveyConfig): ViewModel() {
 
-    private val processor = BehaviorProcessor.create<Pair<Long, Long>>()
+    private val processor = BehaviorProcessor.create<RecordsUploadRequest>()
 
-    val events: LiveData<FileProgressEvent> = LiveDataReactiveStreams.fromPublisher(processor
-            .flatMap { (pId, dId) -> uploadPhotos(pId, dId).toFlowable(BackpressureStrategy.LATEST) })
+    val events: LiveData<ProgressEvent> = LiveDataReactiveStreams.fromPublisher(processor
+            .flatMap { request -> submitRecords(request).toFlowable(BackpressureStrategy.LATEST) })
 
-    fun uploadAllPhotos(projectId: Long, datasetId: Long) {
-        processor.onNext(projectId.to(datasetId))
+    fun submitAll(project: ProjectModel, dataset: DatasetModel) {
+        val records = repository.formRecordDao().all
+        val request = RecordsUploadRequest(records, project, dataset)
+        processor.onNext(request)
     }
 
-    private fun uploadPhotos(projectId: Long, datasetId: Long): Observable<FileProgressEvent> {
+    private fun uploadPhotos(projectId: Long, datasetId: Long): Observable<ProgressEvent> {
         var index = 0
         val totalPhotos = repository.relatedRecordDao().all.size
         return if (totalPhotos == 0) {
@@ -94,7 +112,7 @@ class FileUploader(private val rest: AmigoRest,
         return records.count()
     }
 
-    private fun uploadPhoto(index: Int, record: RelatedRecord, projectId: Long, datasetId: Long, totalPhotos: Int): Observable<FileProgressEvent> {
+    private fun uploadPhoto(index: Int, record: RelatedRecord, projectId: Long, datasetId: Long, totalPhotos: Int): Observable<ProgressEvent> {
         return rest.fetchRelatedTables(projectId, datasetId)
                 .flatMapObservable { Observable.fromIterable(it.results) }
                 .filter { it.id == record.relatedTableId.toLong() }
@@ -115,7 +133,7 @@ class FileUploader(private val rest: AmigoRest,
                           record: RelatedRecord,
                           chunkSize: Int,
                           fileIndex: Int,
-                          filesTotal: Int) : Observable<FileProgressEvent> {
+                          filesTotal: Int) : Observable<ProgressEvent> {
         val md5 = "90affbd9a1954ec9ff029b7ad7183a16" // Bogus value
         return getFileChunks(url, path, record.filename, chunkSize, record)
                 .filter { it.isNotEmpty() }
@@ -145,7 +163,7 @@ class FileUploader(private val rest: AmigoRest,
                 .map { fileChunk ->
                     if ( (fileChunk.firstByte + fileChunk.chunkSize).toLong() == fileChunk.fileSize) {
                         fileChunk.record?.let { deletePhoto(it) }
-                        FileUploadCompleteEvent("fileIndex:${fileIndex}, filesTotal:${filesTotal}, uploaded bytes:${fileChunk.firstByte + fileChunk.chunkSize}, fileSize:${fileChunk.fileSize}",
+                        FileUploadCompleteEvent("index:${fileIndex}, total:${filesTotal}, uploaded bytes:${fileChunk.firstByte + fileChunk.chunkSize}, fileSize:${fileChunk.fileSize}",
                                 fileIndex,
                                 filesTotal)
                     } else {
@@ -224,16 +242,58 @@ class FileUploader(private val rest: AmigoRest,
         return Single.just(ChunkedUploadResponse())
     }
 
+    private fun submitRecords(request: RecordsUploadRequest): Observable<ProgressEvent> {
+        if(request.records.isEmpty()) {
+            return Observable.just(RecordsUploadCompleteEvent("No Records to submit"))
+        } else
+            return Observable.fromIterable(request.records)
+                    .zipWith(Observable.range(0, Int.MAX_VALUE), BiFunction { record:FormRecord, index:Int -> record.to(index)})
+                    .concatMap { recWithIndex ->
+                        val json = recWithIndex.first.json.getChangesetJson(request.project, request.dataset)
+                        val body = RequestBody.create(MediaType.parse("application/json"),
+                                "{\"changeset\":\"[${json}]\"}")
+                        rest.submitChangeset(request.project.submit_changeset, body).map { recWithIndex }.toObservable()
+                    }
+                    .map { (rec:FormRecord, index:Int) ->
+                        rec?.let { deleteSavedRecord(rec) }
+                        if (index+1 < request.records.size) {
+                            RecordsUploadProgressEvent("Submit record.", index, request.records.size)
+                        } else {
+                            RecordsUploadCompleteEvent("Submit all records done.")
+                        }
+                    }
+                    .flatMap {
+                        uploadPhotos(request.project.id, request.dataset.id)
+                    }
+    }
+
+    fun saveRecord(rec: String) {
+        try {
+            repository.formRecordDao().insert(FormRecord(rec))
+        } catch(e :Exception) {
+            Log.e("RecordViewModel", e.toString())
+        }
+    }
+
+    fun getSavedRecordsNum(): Int {
+        val records = repository.formRecordDao().all
+        return records.count()
+    }
+
+    fun deleteSavedRecord(record: FormRecord) {
+        repository.formRecordDao().delete(record)
+    }
+
     @Suppress("UNCHECKED_CAST")
     class Factory @Inject constructor(private val rest: AmigoRest,
                                       private val repository: Repository,
-                                      private val config: SurveyConfig) : ViewModelFactory<FileUploader>() {
+                                      private val config: SurveyConfig) : ViewModelFactory<UploadViewModel>() {
 
-        override val modelClass = FileUploader::class.java
+        override val modelClass = UploadViewModel::class.java
 
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if(modelClass.isAssignableFrom(this.modelClass)) {
-                return FileUploader(rest, repository, config) as T
+                return UploadViewModel(rest, repository, config) as T
             }
             throw IllegalArgumentException(INFLATION_EXCEPTION)
         }

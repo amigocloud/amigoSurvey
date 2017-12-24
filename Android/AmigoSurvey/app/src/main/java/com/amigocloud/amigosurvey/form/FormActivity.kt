@@ -88,8 +88,8 @@ class FormActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var viewModel: FormViewModel
     private lateinit var photoViewModel: PhotoViewModel
-    private lateinit var fileUploader: FileUploader
-    private lateinit var recordsViewModel: RecordsViewModel
+    private lateinit var uploadViewModel: UploadViewModel
+//    private lateinit var recordsViewModel: RecordsViewModel
     private lateinit var locationViewModel: LocationViewModel
     private lateinit var bridge: AmigoBridge
 
@@ -101,9 +101,9 @@ class FormActivity : AppCompatActivity() {
 
     @Inject lateinit var viewModelFactory: FormViewModel.Factory
     @Inject lateinit var photoModelFactory: PhotoViewModel.Factory
-    @Inject lateinit var recordsModelFactory: RecordsViewModel.Factory
+//    @Inject lateinit var recordsModelFactory: RecordsViewModel.Factory
     @Inject lateinit var locationViewModelFactory: LocationViewModel.Factory
-    @Inject lateinit var fileUploaderFactory: FileUploader.Factory
+    @Inject lateinit var uploadViewModelFactory: UploadViewModel.Factory
     @Inject lateinit var connectivityManager: ConnectivityManager
     @Inject lateinit var moshi: Moshi
 
@@ -114,10 +114,10 @@ class FormActivity : AppCompatActivity() {
         Toothpick.openScopes(ApplicationScope::class.java, this).let {
             Toothpick.inject(this, it)
         }
-        fileUploader = fileUploaderFactory.get(this)
+        uploadViewModel = uploadViewModelFactory.get(this)
         viewModel = viewModelFactory.get(this)
         photoViewModel = photoModelFactory.get(this)
-        recordsViewModel = recordsModelFactory.get(this)
+//        recordsViewModel = recordsModelFactory.get(this)
         locationViewModel = locationViewModelFactory.get(this)
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_form)
@@ -144,29 +144,23 @@ class FormActivity : AppCompatActivity() {
             }
         })
 
-        recordsViewModel.events.observe(this, Observer { progress ->
-            progress?.let {
-                when(progress) {
-                    is RecordsUploadProgress -> {
-                        val pr = (progress.recordIndex.toFloat() / progress.recordsTotal.toFloat()) * 100.0
-                        updateProgress(pr.toInt(), "Upload Record(s)")
-                    }
-                    is RecordsUploadComplete -> {
-                        uploadPhotos()
-                    }
-                }
-            }
-        })
-
-        fileUploader.events.observe(this, Observer { progress ->
+        uploadViewModel.events.observe(this, Observer { progress ->
             when (progress) {
+                is RecordsUploadProgressEvent -> {
+                    val pr = (progress.index.toFloat() / progress.total.toFloat()) * 100.0
+                    val msg = "Record submit: ${progress.index + 1} of ${progress.total}"
+                    updateProgress(pr.toInt(), msg)
+                }
+                is RecordsUploadCompleteEvent -> {
+                    updateProgress(100, "Submit records finished.")
+                }
                 is FileUploadProgressEvent -> {
                     val pr = (progress.bytesSent.toFloat() / progress.bytesTotal.toFloat()) * 100.0
-                    val msg = "File ${progress.fileIndex + 1} of ${progress.filesTotal}: ${progress.message}"
+                    val msg = "File ${progress.index + 1} of ${progress.total}: ${progress.message}"
                     updateProgress(pr.toInt(), msg)
                 }
                 is FileUploadCompleteEvent -> {
-                    if (progress.fileIndex == progress.filesTotal - 1) {
+                    if (progress.index == progress.total - 1) {
                         hideProgressBar()
                         this.finish()
                     }
@@ -186,8 +180,8 @@ class FormActivity : AppCompatActivity() {
         viewModel.onFetchForm(project_id, dataset_id)
         WebView.setWebContentsDebuggingEnabled(true)
 
-        val rn = recordsViewModel.getSavedRecordsNum()
-        val pn = fileUploader.getSavedPhotosNum()
+        val rn = uploadViewModel.getSavedRecordsNum()
+        val pn = uploadViewModel.getSavedPhotosNum()
         if(rn > 0 ) {
             if(pn > 0 ) {
                 binding.recordsInfo.text = "Records:$rn Photos:$pn"
@@ -232,10 +226,6 @@ class FormActivity : AppCompatActivity() {
         }
     }
 
-    fun uploadPhotos() {
-        fileUploader.uploadAllPhotos(project_id, dataset_id)
-    }
-
     fun updateProgress(progress: Int, msg: String) {
         progress_bar.visibility = View.VISIBLE
         progress_bar.progress = progress
@@ -260,10 +250,10 @@ class FormActivity : AppCompatActivity() {
     }
 
     fun submitNewRecord(rec: String) {
-        recordsViewModel.saveRecord(rec)
+        uploadViewModel.saveRecord(rec)
 
         if(connectivityManager.isConnected()) {
-            recordsViewModel.submitAllRecords(viewModel.project.get(), viewModel.dataset.get())
+            uploadViewModel.submitAll(viewModel.project.get(), viewModel.dataset.get())
         } else {
             this.finish()
         }
